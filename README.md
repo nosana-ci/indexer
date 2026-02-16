@@ -31,7 +31,7 @@ docker compose up
 
 The default compose file starts:
 - **blockchain indexer**: `http://localhost:3003`
-- **adminer** (DB UI): `http://localhost:8082`
+- **adminer** (DB UI): `http://localhost:8084`
 - **postgres**
 
 If you want a one-command restart:
