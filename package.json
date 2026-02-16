@@ -1,0 +1,27 @@
+{
+  "name": "app",
+  "version": "1.0.50",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "db:generate": "drizzle-kit generate --config=config/drizzle.config.ts",
+    "db:migrate": "drizzle-kit migrate --config=config/drizzle.config.ts",
+    "db:studio": "drizzle-kit studio --config=config/drizzle.config.ts"
+  },
+  "dependencies": {
+    "@elysiajs/cron": "^1.4.1",
+    "@nosana/kit": "2.0.60",
+    "dotenv": "^17.2.3",
+    "drizzle-orm": "^0.45.1",
+    "elysia": "1.4.22",
+    "pg": "^8.18.0"
+  },
+  
+  "devDependencies": {
+    "@types/bs58": "^4.0.4",
+    "@types/pg": "^8.16.0",
+    "bun-types": "latest",
+    "drizzle-kit": "^0.31.8",
+    "tsx": "^4.21.0"
+  },
+  "module": "src/index.js"
+}

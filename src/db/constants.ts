@@ -1,0 +1,1 @@
+export const MAX_PUBKEY_LENGTH = 44;

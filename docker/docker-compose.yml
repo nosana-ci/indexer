@@ -1,0 +1,70 @@
+name: blockchain-indexer
+
+services:
+  blockchain-indexer:
+    build:
+      context: ./bun-node
+      dockerfile: dockerfile
+    command: bun run dev
+    working_dir: /code
+    volumes:
+      - ../:/code:cached
+    ports:
+      - 3003:3003
+    depends_on:
+      - blockchain-indexer-db
+    links:
+      - blockchain-indexer-db
+    environment:
+      - APP_ENV=local
+      - PORT=3003
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=nosana_indexer
+      - POSTGRES_HOST=blockchain-indexer-db
+      - POSTGRES_PORT=5432
+    networks:
+      - deployments_network
+
+  blockchain-indexer-db:
+    image: postgres:18
+    restart: always
+    ports:
+      - 5434:5432
+    volumes:
+      - pgdata:/var/lib/postgresql
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=nosana_indexer
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d nosana_indexer -U blockchain-indexer-db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      deployments_network:
+        aliases:
+          - blockchain-indexer-db
+
+  adminer:
+    image: adminer:4.8.1
+    ports:
+      - 8084:8080
+    restart: always
+    depends_on:
+      blockchain-indexer-db:
+        condition: service_healthy
+    environment:
+      - ADMINER_DEFAULT_SERVER=blockchain-indexer-db
+    volumes:
+      - ./adminer-php.ini:/usr/local/etc/php/conf.d/99-session.ini:ro
+    networks:
+      - deployments_network
+
+volumes:
+  pgdata:
+
+networks:
+  deployments_network:
+    external: true
