@@ -17,7 +17,9 @@ initEnv();
 await runMigrations();
 
 const config: PartialClientConfig = {
-  solana: {},
+  solana: {
+    priorityFees: { type: "fixed", microLamports: 50 },
+  },
 };
 
 if (process.env.SOLANA_RPC) {

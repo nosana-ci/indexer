@@ -1,6 +1,5 @@
 import { type NosanaClient, JobsClient } from '@nosana/kit';
 import type { KeyPairSigner, Address, Instruction } from '@solana/kit';
-import { getSetComputeUnitPriceInstruction } from '@solana-program/compute-budget';
 import JobsRepository from '../repositories/jobs.repository';
 
 const BATCH_SIZE = 15;
@@ -9,7 +8,6 @@ const MAX_JOBS_TO_CLEAN = 150;
 const COMPLETED_WITH_RESULT_AGE_MS = 1 * 60 * 60 * 1000; // 1 hour
 const COMPLETED_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
 const TX_DELAY_MS = 150;
-const PRIORITY_FEE_MICRO_LAMPORTS = 50n;
 const MAX_RETRIES = 2;
 
 export default class JobCleanerService {
@@ -18,7 +16,9 @@ export default class JobCleanerService {
   constructor(
     private readonly nosanaClient: NosanaClient,
     private readonly adminSigner: KeyPairSigner
-  ) {}
+  ) {
+    this.nosanaClient.wallet = adminSigner;
+  }
 
   async cleanJobs(): Promise<void> {
     try {
@@ -54,11 +54,7 @@ export default class JobCleanerService {
         const batch = batches[batchIdx];
         await new Promise((r) => setTimeout(r, TX_DELAY_MS));
 
-        const instructions: Instruction[] = [
-          getSetComputeUnitPriceInstruction({
-            microLamports: PRIORITY_FEE_MICRO_LAMPORTS,
-          }),
-        ];
+        const instructions: Instruction[] = [];
 
         for (const job of batch) {
           try {
@@ -76,15 +72,13 @@ export default class JobCleanerService {
           }
         }
 
-        if (instructions.length <= 1) continue;
+        if (instructions.length === 0) continue;
 
         for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
           try {
             console.log(`Sending clean transaction #${batchIdx + 1}...`);
             const signature =
-              await this.nosanaClient.solana.buildSignAndSend(instructions, {
-                feePayer: this.adminSigner,
-              });
+              await this.nosanaClient.solana.buildSignAndSend(instructions);
             console.log(`Clean transaction #${batchIdx + 1} succeeded: ${signature}`);
             break;
           } catch (e: any) {
