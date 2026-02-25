@@ -1,7 +1,6 @@
 import { Elysia } from "elysia";
-import { jobs } from "./modules/jobs";
-import { stats } from "./modules/stats";
-import type StatsService from "./modules/stats/service";
+import { jobsRouter } from "./modules/jobs";
+import { statsRouter, type StatsService } from "./modules/stats";
 
 export const createApp = (options?: { statsService?: StatsService }) => {
   const app = new Elysia()
@@ -22,10 +21,10 @@ export const createApp = (options?: { statsService?: StatsService }) => {
       return status(500, { message: "Internal server error" });
     })
     .get("/", () => "Hi")
-    .use(jobs);
+    .use(jobsRouter);
 
   if (options?.statsService) {
-    app.use(stats(options.statsService));
+    app.use(statsRouter(options.statsService));
   }
   return app;
 };

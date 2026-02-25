@@ -63,8 +63,17 @@ export type BaseAggregates = {
 
 export type StatsSeriesBucket = BaseAggregates & {
   time: string;
-  projects?: Array<BaseAggregates & { project: string }>;
-  markets?: Array<BaseAggregates & { market: string; name: string | null }>;
+  projects?: Array<
+    BaseAggregates & {
+      project: string;
+    }
+  >;
+  markets?: Array<
+    BaseAggregates & {
+      market: string;
+      name: string | null;
+    }
+  >;
 };
 
 export type StatsTotals = {
@@ -81,7 +90,11 @@ export type StatsByProject = {
   duration: number;
   price: number;
   usdReward: number | null;
-  projects: Array<BaseAggregates & { project: string }>;
+  projects: Array<
+    BaseAggregates & {
+      project: string;
+    }
+  >;
 };
 
 export type StatsByMarket = {
@@ -90,7 +103,12 @@ export type StatsByMarket = {
   duration: number;
   price: number;
   usdReward: number | null;
-  markets: Array<BaseAggregates & { market: string; name: string | null }>;
+  markets: Array<
+    BaseAggregates & {
+      market: string;
+      name: string | null;
+    }
+  >;
 };
 
 export type StatsTimeSeries = {

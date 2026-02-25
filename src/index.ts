@@ -9,7 +9,7 @@ import {
 } from "@nosana/kit";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { cron } from "@elysiajs/cron";
-import StatsService from "./modules/stats/service";
+import { StatsService } from "./modules/stats";
 import JobCleanerService from "./services/job-cleaner.service";
 
 initEnv();
