@@ -6,25 +6,36 @@ import {
   GetLongRunningJobsQuery,
 } from "./model";
 import { JobsService } from "./service";
+import {
+  jobsRateLimit,
+  jobsHourlyRateLimit,
+  jobsDailyRateLimit,
+} from "../../middleware/rate-limit";
 
 const jobsService = new JobsService();
 
 const jobsRouter = new Elysia({ prefix: "/jobs" })
   .decorate("jobsService", jobsService)
-  .get(
-    "/",
-    async ({ query, jobsService }) => {
-      return await jobsService.getJobs(query);
-    },
-    {
-      query: GetJobsQuery,
-      detail: {
-        summary: "List jobs",
-        description:
-          "List jobs with optional filtering by state, market, node, and poster",
-        tags: ["Jobs"],
-      },
-    }
+  .group("", (app) =>
+    app
+      .use(jobsRateLimit())
+      .use(jobsHourlyRateLimit())
+      .use(jobsDailyRateLimit())
+      .get(
+        "/",
+        async ({ jobsService, query }) => {
+          return await jobsService.getJobs(query);
+        },
+        {
+          query: GetJobsQuery,
+          detail: {
+            summary: "List jobs",
+            description:
+              "List jobs with optional filtering by state, market, node, and poster",
+            tags: ["Jobs"],
+          },
+        }
+      )
   )
   .get(
     "/running",
