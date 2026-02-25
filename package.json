@@ -9,7 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "ci:test": "vitest run --coverage --reporter=default --reporter=junit --outputFile.junit=./junit.xml"
+    "ci:test": "vitest run --reporter=default --reporter=junit --outputFile.junit=./junit.xml"
   },
   "dependencies": {
     "@elysiajs/cron": "^1.4.1",
