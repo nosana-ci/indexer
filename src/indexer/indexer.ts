@@ -7,6 +7,8 @@ import {
   address,
   type Market,
   type Run,
+  type FlowState,
+  type JobDefinition,
 } from '@nosana/kit';
 import type { InsertJob, SelectJob } from '../db/tables/jobs';
 import {
@@ -143,6 +145,8 @@ export class Indexer {
       marketAccount.address.toString()
     );
 
+    // Check if all our queued jobs in this market are actually still queued on-chain
+    // A delist instruction can remove the job from the on-chain queue
     if (queuedJobsFromDB && queuedJobsFromDB.length) {
       let removeJobsFromDb: string[] = [];
       if (
@@ -151,11 +155,13 @@ export class Indexer {
       ) {
         removeJobsFromDb = queuedJobsFromDB.map((j) => j.address);
       } else {
+        // Check which jobs are not in queue anymore
         removeJobsFromDb = queuedJobsFromDB
           .filter((j) => !marketAccount.queue.includes(address(j.address)))
           .map((j) => j.address);
       }
       if (removeJobsFromDb.length) {
+        // Double check if these jobs really don't exist on-chain anymore before deleting them
         for (let i = 0; i < removeJobsFromDb.length; i++) {
           try {
             const exists = await checkJobExists(
@@ -182,6 +188,7 @@ export class Indexer {
     );
 
     if (!existingJobData || !jobsAreEqual(existingJobData, job)) {
+      // Don't update if the new job state is smaller or the same
       if (
         existingJobData &&
         existingJobData.state >= (job.state as number) &&
@@ -193,20 +200,22 @@ export class Indexer {
         );
         return null;
       }
-
+      // If we have existing job data and only the timeout is higher, do a partial update
       let newJob: SelectJob | null;
       if (existingJobData) {
-        const updateData: Partial<Job> & { address: Job['address'] } = { ...job };
+        const updateData: Partial<Job> & { address: Job['address'] } = job;
         if (job.state < existingJobData.state) {
-          delete (updateData as any).state;
-          delete (updateData as any).node;
-          delete (updateData as any).timeStart;
+          // this scenario might happen for when we have an extend for a running job
+          delete updateData.state;
+          delete updateData.node;
+          delete updateData.timeStart;
         }
         newJob = await this.updateJob(updateData);
       } else {
         newJob = await this.insertOrUpdateJob(job);
       }
       if (newJob) {
+        // Optional: Process the job immediately after insert/update (non-blocking)
         this.processJob(newJob)
           .then(() => {
             console.log(`Immediately processed job ${newJob.address}`);
@@ -237,18 +246,22 @@ export class Indexer {
   private async updateDailyTables(job: SelectJob): Promise<void> {
     if (job.state === JobState.COMPLETED) {
       try {
+        // Format UTC date as YYYY-MM-DD
         const jobDate = new Date(job.timeEnd * 1000)
           .toISOString()
           .split('T')[0];
 
+        // Calculate NOS earnings for the node
         const durationSeconds = Math.min(
           job.timeEnd - job.timeStart,
           job.timeout as number
         );
 
+        // Calculate USD earnings for the node
         const durationHours = durationSeconds / 3600;
         const totalUsdEarned = durationHours * (job.usdRewardPerHour || 0);
 
+        // Update daily_earnings for the node (in USD) using recalculation
         await this.dailyEarningsRepo.upsertWithRecalculation({
           date: jobDate,
           node: job.node,
@@ -256,6 +269,7 @@ export class Indexer {
           totalEarnedUsd: totalUsdEarned,
         });
 
+        // Update daily spent for the project (repository will use market rate if job rate is NULL)
         await this.dailyJobSpendRepo.upsertWithRecalculation({
           date: jobDate,
           project: job.project,
@@ -263,7 +277,10 @@ export class Indexer {
           totalSpent: totalUsdEarned,
         });
       } catch (error) {
-        console.error(`Error updating daily tables for job ${job.address}:`, error);
+        console.error(
+          `Error updating daily tables for job ${job.address}:`,
+          error
+        );
       }
     }
   }
@@ -293,17 +310,17 @@ export class Indexer {
 
   async marketsGPA() {
     try {
-      const marketsList = await this.nosanaClient.jobs.markets();
-      console.log(`(MARKETS GPA) Processing ${marketsList.length} markets`);
+      const markets = await this.nosanaClient.jobs.markets();
+      console.log(`(MARKETS GPA) Processing ${markets.length} markets`);
 
-      for (const [index, market] of marketsList.entries()) {
+      for (const [index, market] of markets.entries()) {
         console.log(
-          `(MARKETS GPA ${index + 1}/${marketsList.length}) Processing market ${market.address}`
+          `(MARKETS GPA ${index + 1}/${markets.length}) Processing market ${market.address}`
         );
         await this.handleMarketUpdate(market);
       }
 
-      console.log(`(MARKETS GPA) Processed ${marketsList.length} markets`);
+      console.log(`(MARKETS GPA) Processed ${markets.length} markets`);
     } catch (e) {
       console.error('Error in marketsGPA:', e);
     }
@@ -314,7 +331,7 @@ export class Indexer {
       const jobsToProcess: SelectJob[] =
         await this.jobsRepo.findJobsToProcess({
           limit: 500,
-          minTimeEnd: 1727690400,
+          minTimeEnd: 1727690400, // TG3 cutoff date
         });
 
       if (!jobsToProcess.length) {
@@ -355,13 +372,14 @@ export class Indexer {
   private async processJob(job: SelectJob): Promise<boolean> {
     console.log(`Processing job ${job.address} with state ${job.state}`);
 
+    // Prepare update data object
     const updateData: Partial<InsertJob> = {};
     if (job.listedAt === null) {
       try {
         const signatures = await this.nosanaClient.solana.rpc
           .getSignaturesForAddress(address(job.address))
           .send();
-        const listSignature = signatures[signatures.length - 1];
+        const listSignature = signatures[signatures.length - 1]; // First transaction
         if (listSignature && listSignature.blockTime) {
           updateData.listedAt = Number(listSignature.blockTime);
         } else {
@@ -377,10 +395,14 @@ export class Indexer {
 
     if (listedAt && job.usdRewardPerHour === null) {
       try {
+        // Get the NOS price at the job's timeStart
         const nosPrice = await getNosPrice(listedAt);
 
         if (nosPrice !== null) {
-          const usdRewardPerHour = (job.price / 1e6) * nosPrice * 3600;
+          // Calculate USD reward per hour
+          // job.price is in NOS tokens per second, nosPrice is USD per NOS
+          // Convert to USD per hour: price * nosPrice * 3600 seconds
+          const usdRewardPerHour = (job.price / 1e6) * nosPrice * 3600; // Divide by 1e6 to convert from lamports to NOS
           updateData.usdRewardPerHour = usdRewardPerHour;
         } else {
           console.log(
@@ -395,11 +417,13 @@ export class Indexer {
       }
     }
 
+    // Handle job definition retrieval
     if (!job.jobDefinition && job.ipfsJob) {
       try {
-        const jobDefinition: any = await this.nosanaClient.ipfs.retrieve(
+        const jobDefinition: JobDefinition = await this.nosanaClient.ipfs.retrieve(
           job.ipfsJob
         );
+        // to prevent pinita rate limits
         await sleep(0.5);
         const newJobType =
           jobDefinition?.meta?.trigger ?? null;
@@ -417,15 +441,19 @@ export class Indexer {
       }
     }
 
+    // Handle job result retrieval
     if (
       job.ipfsResult &&
       !job.jobResult &&
+      // only jobs from the 30th of September 2024, start of TG3
       job.timeEnd > 1727690400 &&
       job.state === 2
     ) {
       try {
-        const result: any = await this.nosanaClient.ipfs.retrieve(job.ipfsResult);
+        const result: FlowState = await this.nosanaClient.ipfs.retrieve(job.ipfsResult);
+        // to prevent pinita rate limits
         await sleep(0.5);
+        // remove logs from all opStates
         if (result.opStates) {
           const opStates = result.opStates.map(
             ({ logs, ...keepAttrs }: any) => keepAttrs
@@ -447,6 +475,7 @@ export class Indexer {
       }
     }
 
+    // Only update database if we have data to update
     if (Object.keys(updateData).length > 0) {
       try {
         await this.jobsRepo.simpleUpdate(job.address, updateData);

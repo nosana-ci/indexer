@@ -2,7 +2,9 @@ import type { Job, NosanaClient } from '@nosana/kit';
 import { address } from '@nosana/kit';
 import type { InsertJob, SelectJob } from '../db/tables/jobs';
 
+// Helper function to compare job from database with Job from nosana/kit
 export function jobsAreEqual(dbJob: SelectJob, nosanaJob: Job): boolean {
+  // Compare core job properties
   return (
     dbJob.state === nosanaJob.state &&
     dbJob.timeStart === nosanaJob.timeStart &&
@@ -18,13 +20,17 @@ export function jobsAreEqual(dbJob: SelectJob, nosanaJob: Job): boolean {
   );
 }
 
+// Helper function to convert Job (full or partial) from @nosana/kit to InsertJobAccount for database
 export function convertJobToInsertJob(
   job: Job | (Partial<Job> & { address: Job['address'] })
 ): InsertJob | (Partial<InsertJob> & { address: InsertJob['address'] }) {
-  const result: Partial<InsertJob> & { address: InsertJob['address'] } = {
+  const result: Partial<InsertJob> & {
+    address: InsertJob['address'];
+  } = {
     address: job.address.toString(),
   };
 
+  // Handle all possible Job properties, checking if they exist and are defined
   if ('ipfsJob' in job && job.ipfsJob !== undefined) {
     result.ipfsJob = job.ipfsJob;
   }
@@ -62,6 +68,8 @@ export function convertJobToInsertJob(
   return result;
 }
 
+// Helper function to check if a job exists on-chain
+// Returns true if the job exists, false if it doesn't exist
 export async function checkJobExists(
   nosanaClient: NosanaClient,
   jobAddress: string
@@ -80,10 +88,12 @@ export async function checkJobExists(
     ) {
       return false;
     }
+    // Re-throw other errors
     throw e;
   }
 }
 
+// Helper function to pause execution for a specified number of seconds
 export function sleep(seconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 }
