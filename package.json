@@ -11,6 +11,7 @@
     "@elysiajs/cron": "^1.4.1",
     "@nosana/kit": "^2.1.7",
     "@sinclair/typebox": "^0.34.48",
+    "dayjs": "^1.11.19",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.1",
     "elysia": "1.4.22",

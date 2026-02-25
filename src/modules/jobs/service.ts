@@ -1,3 +1,4 @@
+import dayjs from 'dayjs';
 import { NotFoundError } from 'elysia';
 import {
   eq,
@@ -78,6 +79,9 @@ export class JobsService {
     );
   }
 
+  /**
+   * Returns the node addresses of jobs in a "RUNNING" state for a given market.
+   */
   async getRunningNodesForMarket(market: string): Promise<string[]> {
     const runningState = jobStateMappingReverse['RUNNING'];
     const rows = await this.jobsRepo.getRunningNodesForMarket(
@@ -87,6 +91,10 @@ export class JobsService {
     return rows.map((row) => row.node);
   }
 
+  /**
+   * Returns jobs running longer than their timeout,
+   * optionally filtered by market or payer.
+   */
   async getLongRunningJobs(market?: string, payer?: string) {
     const currentTimestamp = Math.floor(Date.now() / 1000);
     const result = await this.jobsRepo.findLongRunningJobs(
@@ -121,6 +129,7 @@ export class JobsService {
     );
   }
 
+  // TODO: use proper cache for stats
   async getStats(query: typeof GetJobsQuery.static): Promise<StatsType> {
     const noFiltersOrGrouping =
       !query.market &&
@@ -390,17 +399,20 @@ export class JobsService {
         const weekNumber = Math.ceil(days / 7);
         let granularity: string | null;
         if (period > (365 / 3) * 24 * 3600) {
-          granularity =
-            weekNumber +
-            currentDate.getFullYear().toString();
+          // Bigger than 4 months, group by week
+          granularity = weekNumber + dayjs(timestamp).format('YYYY');
         } else if (period > 5 * 24 * 3600) {
-          granularity = currentDate.toISOString().split('T')[0];
+          // Bigger than 5 days, group by day
+          granularity = dayjs(timestamp).format('DD/MMM/YYYY');
         } else if (period > 12 * 3600) {
-          granularity = `${currentDate.getHours()} ${currentDate.toISOString().split('T')[0]}`;
+          // Bigger than 12 hours, group by hour
+          granularity = dayjs(timestamp).format('HH DD/MMM/YYYY');
         } else if (period > 0) {
-          granularity = `${currentDate.getHours()}:${currentDate.getMinutes()} ${currentDate.toISOString().split('T')[0]}`;
+          // Under 12 hours
+          granularity = dayjs(timestamp).format('HH:mm DD/MMM/YYYY');
         } else {
-          granularity = `${currentDate.getMonth() + 1}/${currentDate.getFullYear()}`;
+          // All: group by month
+          granularity = dayjs(timestamp).format('MMM/YYYY');
         }
         if (granularity && tempDateCollection.includes(granularity)) {
           const index = tempDateCollection.indexOf(granularity);
