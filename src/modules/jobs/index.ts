@@ -1,5 +1,4 @@
 import { Elysia, t } from "elysia";
-import { createDbPlugin } from "../../plugins/db";
 import {
   getByAddressParams,
   jobResponse,
@@ -8,11 +7,10 @@ import {
 } from "./model";
 import { JobsService } from "./service";
 
+const jobsService = new JobsService();
+
 export const jobs = new Elysia({ prefix: "/jobs" })
-  .use(createDbPlugin())
-  .derive(({ db }) => ({
-    jobsService: new JobsService(db),
-  }))
+  .decorate("jobsService", jobsService)
   .get(
     "/",
     async ({ query, jobsService }) => {

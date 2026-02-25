@@ -1,8 +1,10 @@
 import { Elysia } from "elysia";
 import { jobs } from "./modules/jobs";
+import { stats } from "./modules/stats";
+import type StatsService from "./modules/stats/service";
 
-export const createApp = () => {
-  return new Elysia()
+export const createApp = (options?: { statsService?: StatsService }) => {
+  const app = new Elysia()
     .onError(({ error, status }) => {
       if (
         typeof error === "object" &&
@@ -21,4 +23,9 @@ export const createApp = () => {
     })
     .get("/", () => "Hi")
     .use(jobs);
+
+  if (options?.statsService) {
+    app.use(stats(options.statsService));
+  }
+  return app;
 };

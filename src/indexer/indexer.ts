@@ -16,13 +16,13 @@ import {
   sleep,
 } from './utils';
 import { getNosPrice } from '../services/price.service';
-import JobAccountsRepository from '../repositories/job-accounts.repository';
+import JobsRepository from '../repositories/jobs.repository';
 import DailyEarningsRepository from '../repositories/daily-earnings.repository';
 import DailyJobSpendRepository from '../repositories/daily-job-spend.repository';
 
 export class Indexer {
   private nosanaClient: NosanaClient;
-  private jobAccountsRepo: JobAccountsRepository;
+  private jobsRepo: JobsRepository;
   private dailyEarningsRepo: DailyEarningsRepository;
   private dailyJobSpendRepo: DailyJobSpendRepository;
   private _isRunning: boolean = false;
@@ -32,12 +32,12 @@ export class Indexer {
 
   constructor(
     nosanaClient: NosanaClient,
-    jobAccountsRepo?: JobAccountsRepository,
+    jobsRepo?: JobsRepository,
     dailyEarningsRepo?: DailyEarningsRepository,
     dailyJobSpendRepo?: DailyJobSpendRepository
   ) {
     this.nosanaClient = nosanaClient;
-    this.jobAccountsRepo = jobAccountsRepo || new JobAccountsRepository();
+    this.jobsRepo = jobsRepo || new JobsRepository();
     this.dailyEarningsRepo = dailyEarningsRepo || new DailyEarningsRepository();
     this.dailyJobSpendRepo = dailyJobSpendRepo || new DailyJobSpendRepository();
   }
@@ -139,7 +139,7 @@ export class Indexer {
   }
 
   async handleMarketUpdate(marketAccount: Market): Promise<void> {
-    const queuedJobsFromDB = await this.jobAccountsRepo.findQueuedByMarket(
+    const queuedJobsFromDB = await this.jobsRepo.findQueuedByMarket(
       marketAccount.address.toString()
     );
 
@@ -166,7 +166,7 @@ export class Indexer {
               console.log(
                 `Could not find queued job ${removeJobsFromDb[i]} on-chain, it was probably delisted, removing from db..`
               );
-              await this.jobAccountsRepo.delete(removeJobsFromDb[i]);
+              await this.jobsRepo.delete(removeJobsFromDb[i]);
             }
           } catch (e: unknown) {
             console.log('Could not check job account on-chain', e);
@@ -177,7 +177,7 @@ export class Indexer {
   }
 
   private async handleJobUpdate(job: Job): Promise<SelectJob | null> {
-    const existingJobData = await this.jobAccountsRepo.findByAddress(
+    const existingJobData = await this.jobsRepo.findByAddress(
       job.address.toString()
     );
 
@@ -312,7 +312,7 @@ export class Indexer {
   async processJobs() {
     try {
       const jobsToProcess: SelectJob[] =
-        await this.jobAccountsRepo.findJobsToProcess({
+        await this.jobsRepo.findJobsToProcess({
           limit: 500,
           minTimeEnd: 1727690400,
         });
@@ -449,7 +449,7 @@ export class Indexer {
 
     if (Object.keys(updateData).length > 0) {
       try {
-        await this.jobAccountsRepo.simpleUpdate(job.address, updateData);
+        await this.jobsRepo.simpleUpdate(job.address, updateData);
 
         console.log(
           `Updated job ${job.address} with:`,
@@ -465,13 +465,13 @@ export class Indexer {
 
   async insertOrUpdateJob(job: Job): Promise<SelectJob> {
     const jobValues = convertJobToInsertJob(job) as InsertJob;
-    return await this.jobAccountsRepo.upsert(jobValues);
+    return await this.jobsRepo.upsert(jobValues);
   }
 
   async updateJob(
     job: Partial<Job> & { address: Job['address'] }
   ): Promise<SelectJob | null> {
     const jobValues = convertJobToInsertJob(job);
-    return await this.jobAccountsRepo.update(jobValues.address, jobValues);
+    return await this.jobsRepo.update(jobValues.address, jobValues);
   }
 }

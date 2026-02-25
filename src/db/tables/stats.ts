@@ -15,3 +15,6 @@ export const stats = pgTable('stats', {
   fullyDilutedMarketCap: integer('fully_diluted_market_cap'),
   dailyPriceChange: real('daily_price_change'),
 });
+
+export type InsertStats = typeof stats.$inferInsert;
+export type SelectStats = typeof stats.$inferSelect;

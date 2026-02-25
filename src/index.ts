@@ -7,7 +7,10 @@ import {
   type NosanaNetwork,
   type PartialClientConfig,
 } from "@nosana/kit";
+import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { cron } from "@elysiajs/cron";
+import StatsService from "./modules/stats/service";
+import JobCleanerService from "./services/job-cleaner.service";
 
 initEnv();
 
@@ -27,8 +30,26 @@ const nosanaClient = createNosanaClient(
 );
 
 const indexer = new Indexer(nosanaClient);
+const statsService = new StatsService(nosanaClient);
 
-const app = createApp()
+let jobCleanerService: JobCleanerService | null = null;
+
+if (process.env.CLEAN_ADMIN_PRIVATE_KEY) {
+  try {
+    const keyBytes = new Uint8Array(
+      JSON.parse(process.env.CLEAN_ADMIN_PRIVATE_KEY)
+    );
+    const adminSigner = await createKeyPairSignerFromBytes(keyBytes);
+    jobCleanerService = new JobCleanerService(nosanaClient, adminSigner);
+    console.log(
+      `Job cleaner enabled with admin address: ${adminSigner.address}`
+    );
+  } catch (error) {
+    console.error("Failed to initialize job cleaner:", error);
+  }
+}
+
+const app = createApp({ statsService })
   .get("/health", () => {
     const health = indexer.healthStatus;
     const timeSinceLastActivity = Date.now() - health.lastActivity.getTime();
@@ -77,7 +98,42 @@ const app = createApp()
       },
     })
   )
-  .listen(Number(process.env.PORT) || 3000);
+  .use(
+    cron({
+      name: "refresh-stats",
+      pattern: "*/5 * * * *",
+      async run() {
+        console.log("🚀 Refresh Stats");
+        try {
+          await statsService.refreshStats();
+          console.log("✅ Refresh Stats completed successfully");
+        } catch (error) {
+          console.error("❌ Refresh Stats failed:", error);
+        }
+      },
+    })
+  );
+
+if (jobCleanerService) {
+  const cleaner = jobCleanerService;
+  app.use(
+    cron({
+      name: "job-cleaner",
+      pattern: "0 */6 * * *",
+      async run() {
+        console.log("🧹 Running Job Cleaner...");
+        try {
+          await cleaner.cleanJobs();
+          console.log("✅ Job Cleaner completed successfully");
+        } catch (error) {
+          console.error("❌ Job Cleaner failed:", error);
+        }
+      },
+    })
+  );
+}
+
+app.listen(Number(process.env.PORT) || 3000);
 
 console.log(
   `⛓️ Blockchain Indexer is running at ${app.server?.hostname}:${app.server?.port}`

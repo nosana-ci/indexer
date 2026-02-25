@@ -1,21 +1,15 @@
 import { NotFoundError } from 'elysia';
 import {
-  lt,
-  and,
   eq,
   gt,
-  desc,
-  count,
-  asc,
-  ne,
   gte,
+  lt,
   lte,
-  or,
+  count,
   sql,
 } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import * as schema from '../../db/schema';
 import { jobs, type SelectJob } from '../../db/tables/jobs';
+import JobsRepository from '../../repositories/jobs.repository';
 import {
   GroupBy,
   type GetJobsQuery,
@@ -30,16 +24,14 @@ import type { JobResponse } from './model';
 
 export class JobsService {
   private statsCache?: StatsType;
-  private db: NodePgDatabase<typeof schema>;
+  private readonly jobsRepo: JobsRepository;
 
-  constructor(db: NodePgDatabase<typeof schema>) {
-    this.db = db;
+  constructor() {
+    this.jobsRepo = new JobsRepository();
   }
 
   async getByAddress(address: string): Promise<JobResponse> {
-    const job = await this.db.query.jobs.findFirst({
-      where: eq(jobs.address, address),
-    });
+    const job = await this.jobsRepo.findByAddress(address);
 
     if (!job) {
       throw new NotFoundError('Job not found');
@@ -51,73 +43,35 @@ export class JobsService {
   async getJobs(query: typeof GetJobsQuery.static) {
     const maxLimit = 50;
     const effectiveLimit = Math.min(query.limit ?? 10, maxLimit);
+    const state = query.state
+      ? jobStateMappingReverse[query.state]
+      : undefined;
 
-    const result = await this.db
-      .select()
-      .from(jobs)
-      .orderBy(desc(jobs.timeStart))
-      .where(() => {
-        const conditions = [];
-
-        if (query.state) {
-          conditions.push(
-            eq(jobs.state, jobStateMappingReverse[query.state])
-          );
-        }
-        if (query.market) {
-          conditions.push(eq(jobs.market, query.market));
-        }
-        if (query.node) {
-          conditions.push(eq(jobs.node, query.node));
-        }
-        if (query.poster) {
-          conditions.push(eq(jobs.project, query.poster));
-        }
-        return conditions.length ? and(...conditions) : undefined;
-      })
-      .limit(effectiveLimit)
-      .offset(query.offset ?? 0)
-      .execute();
-
-    const totalJobsQuery = this.db
-      .select({ count: count() })
-      .from(jobs)
-      .where(() => {
-        const conditions = [];
-
-        if (query.state) {
-          conditions.push(
-            eq(jobs.state, jobStateMappingReverse[query.state])
-          );
-        }
-        if (query.market) {
-          conditions.push(eq(jobs.market, query.market));
-        }
-        if (query.node) {
-          conditions.push(eq(jobs.node, query.node));
-        }
-        if (query.poster) {
-          conditions.push(eq(jobs.project, query.poster));
-        }
-        return conditions.length ? and(...conditions) : undefined;
-      });
-
-    const totalJobs = await totalJobsQuery.execute();
+    const [result, totalJobs] = await Promise.all([
+      this.jobsRepo.findMany({
+        limit: effectiveLimit,
+        offset: query.offset ?? 0,
+        state,
+        market: query.market,
+        node: query.node,
+        poster: query.poster,
+      }),
+      this.jobsRepo.countMany({
+        state,
+        market: query.market,
+        node: query.node,
+        poster: query.poster,
+      }),
+    ]);
 
     return {
       jobs: result,
-      totalJobs: totalJobs[0].count,
+      totalJobs,
     };
   }
 
   async getRunningJobs() {
-    const runningJobsQuery = this.db
-      .select({ running: count(), market: jobs.market })
-      .from(jobs)
-      .where(eq(jobs.state, jobStateMappingReverse['RUNNING']))
-      .groupBy(jobs.market);
-
-    const runningJobs = await runningJobsQuery.execute();
+    const runningJobs = await this.jobsRepo.countRunningByMarket();
 
     return Object.fromEntries(
       runningJobs.map((k) => [k.market, { running: k.running }])
@@ -126,48 +80,20 @@ export class JobsService {
 
   async getRunningNodesForMarket(market: string): Promise<string[]> {
     const runningState = jobStateMappingReverse['RUNNING'];
-
-    const rows = await this.db
-      .selectDistinct({ node: jobs.node })
-      .from(jobs)
-      .where(
-        and(eq(jobs.market, market), eq(jobs.state, runningState))
-      )
-      .execute();
-
+    const rows = await this.jobsRepo.getRunningNodesForMarket(
+      market,
+      runningState
+    );
     return rows.map((row) => row.node);
   }
 
   async getLongRunningJobs(market?: string, payer?: string) {
     const currentTimestamp = Math.floor(Date.now() / 1000);
-    const conditions = [
-      eq(jobs.timeEnd, 0),
-      ne(jobs.timeStart, 0),
-      lt(
-        sql`COALESCE(${jobs.timeStart}, 0) + COALESCE(${jobs.timeout}, 0)`,
-        currentTimestamp
-      ),
-    ];
-
-    if (market) {
-      conditions.push(eq(jobs.market, market));
-    }
-
-    if (payer) {
-      conditions.push(eq(jobs.payer, payer));
-    }
-
-    const result = await this.db
-      .select({
-        address: jobs.address,
-        timeStart: jobs.timeStart,
-        timeout: jobs.timeout,
-        market: jobs.market,
-      })
-      .from(jobs)
-      .where(and(...conditions))
-      .orderBy(asc(jobs.timeStart))
-      .execute();
+    const result = await this.jobsRepo.findLongRunningJobs(
+      currentTimestamp,
+      market,
+      payer
+    );
 
     if (market) {
       return {
@@ -235,24 +161,7 @@ export class JobsService {
 
       const multiplier = query.useMultiplier ? 1.1 : 1.0;
 
-      const baseCTE = this.db.$with('jobs_base').as(
-        this.db
-          .select({
-            project: jobs.project,
-            market: jobs.market,
-            timeStart: jobs.timeStart,
-            timeEnd: jobs.timeEnd,
-            timeout: jobs.timeout,
-            price: jobs.price,
-            usdRewardPerHour: jobs.usdRewardPerHour,
-            effectiveRuntimeSeconds:
-              sql<number>`LEAST((${jobs.timeEnd} - ${jobs.timeStart}), ${jobs.timeout})`.as(
-                'effectiveRuntimeSeconds'
-              ),
-          })
-          .from(jobs)
-          .where(and(...conditions))
-      );
+      const baseCTE = this.jobsRepo.createStatsBaseCte(conditions);
 
       const effectivePrice = (table: any) =>
         sql<number>`sum((${table.effectiveRuntimeSeconds}) * (${table.price}/1e6) * ${multiplier})::numeric(15, 6)`;
@@ -265,21 +174,10 @@ export class JobsService {
       const groupByMarket = query.groupBy === GroupBy.Market;
 
       if (query.timeSeriesInterval) {
-        const bucketedCTE = this.db.$with('jobs_bucketed').as(
-          this.db
-            .with(baseCTE)
-            .select({
-              bucket:
-                sql<string>`date_trunc(${query.timeSeriesInterval}, to_timestamp(${baseCTE.timeStart}))`.as(
-                  'bucket'
-                ),
-              project: baseCTE.project,
-              market: baseCTE.market,
-              effectiveRuntimeSeconds: baseCTE.effectiveRuntimeSeconds,
-              price: baseCTE.price,
-              usdRewardPerHour: baseCTE.usdRewardPerHour,
-            })
-            .from(baseCTE)
+        const bucketedCTE = this.jobsRepo.createStatsBucketedCte(
+          baseCTE,
+          query.timeSeriesInterval,
+          groupByMarket
         );
 
         const select: Record<string, any> = {
@@ -301,12 +199,12 @@ export class JobsService {
           groupByFields.push(bucketedCTE.project);
         }
 
-        const timeSeriesRows = await this.db
-          .with(baseCTE, bucketedCTE)
-          .select(select)
-          .from(bucketedCTE)
-          .groupBy(...groupByFields)
-          .orderBy(bucketedCTE.bucket);
+        const timeSeriesRows = await this.jobsRepo.getStatsTimeSeriesRows(
+          baseCTE,
+          bucketedCTE,
+          select,
+          groupByFields
+        );
 
         const nestedData = this.nestTimeSeriesData(
           timeSeriesRows,
@@ -316,18 +214,10 @@ export class JobsService {
 
         stats = { retrieved: now, series: nestedData } as StatsTimeSeries;
       } else if (groupByMarket) {
-        const rows = await this.db
-          .with(baseCTE)
-          .select({
-            market: baseCTE.market,
-            completed: count(),
-            duration: sumDuration(baseCTE),
-            price: effectivePrice(baseCTE),
-            usdReward: effectiveUsdReward(baseCTE),
-          })
-          .from(baseCTE)
-          .groupBy(baseCTE.market)
-          .execute();
+        const rows = await this.jobsRepo.getStatsByMarketRows(
+          baseCTE,
+          multiplier
+        );
 
         const totals = rows.reduce(
           (acc, r) => {
@@ -356,18 +246,10 @@ export class JobsService {
           })),
         } as StatsByMarket;
       } else if (groupByProject) {
-        const rows = await this.db
-          .with(baseCTE)
-          .select({
-            project: baseCTE.project,
-            completed: count(),
-            duration: sumDuration(baseCTE),
-            price: effectivePrice(baseCTE),
-            usdReward: effectiveUsdReward(baseCTE),
-          })
-          .from(baseCTE)
-          .groupBy(baseCTE.project)
-          .execute();
+        const rows = await this.jobsRepo.getStatsByProjectRows(
+          baseCTE,
+          multiplier
+        );
 
         const totals = rows.reduce(
           (acc, r) => {
@@ -395,16 +277,7 @@ export class JobsService {
           })),
         } as StatsByProject;
       } else {
-        const rows = await this.db
-          .with(baseCTE)
-          .select({
-            completed: count(),
-            duration: sumDuration(baseCTE),
-            price: effectivePrice(baseCTE),
-            usdReward: effectiveUsdReward(baseCTE),
-          })
-          .from(baseCTE)
-          .execute();
+        const rows = await this.jobsRepo.getStatsTotals(baseCTE, multiplier);
 
         const totals = rows[0];
         const completed = Number(totals?.completed || 0);
@@ -498,18 +371,9 @@ export class JobsService {
   }
 
   async getTimestamps(period: number) {
-    const jobRows = await this.db.query.jobs.findMany({
-      where: and(
-        gt(jobs.timeStart, 0),
-        gt(
-          jobs.timeStart,
-          period ? Math.floor(Date.now() / 1000) - period : 0
-        )
-      ),
-      columns: {
-        timeStart: true,
-      },
-    });
+    const jobRows = await this.jobsRepo.findTimeStartsSince(
+      period ? Math.floor(Date.now() / 1000) - period : 0
+    );
     const timeStamps = jobRows.map((job: { timeStart: number }) => job.timeStart);
     const updatedData: Array<{ x: number; y: number }> = [];
     const tempDateCollection: Array<string | null> = [];
