@@ -1,0 +1,47 @@
+include:
+  - project: nosana-ci/tools/cicd/gitlab-ci
+    file: docker-container.yml
+
+variables:
+  CONTAINER_PLATFORMS: linux/amd64
+  DOCKERFILE_DIR: docker
+  # RUN_AUTO_BUMP: ok
+  # AUTO_BUMP_REPO: nosana-ci/apps/platform/k8s
+  # AUTO_BUMP_FILE: helm-indexer.tf
+  # AUTO_BUMP_SCG_PREFIX: image_tag [^}]*= { dev = \"
+
+bun install:
+  image: oven/bun:1
+  stage: build
+  script:
+    - bun install --frozen-lockfile
+  artifacts:
+    untracked: true
+  rules:
+    - if: $CI_MERGE_REQUEST_ID
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+bun test:
+  image: oven/bun:1
+  stage: test
+  dependencies:
+    - bun install
+  script:
+    - bun run ci:test
+  coverage: '/All files[^|]*\|[^|]*\|[^|]*\|[^|]*\|[^\d]*([\d\.]+)/'
+  artifacts:
+    when: always
+    paths:
+      - junit.xml
+    reports:
+      junit: junit.xml
+  rules:
+    - if: $CI_MERGE_REQUEST_ID
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+auto deploy prd:
+  stage: .post
+  extends: .auto-deploy
+  variables:
+    AUTO_BUMP_SCG_PREFIX: image_tag [^}]* prd = \"
+  when: manual
