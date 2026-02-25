@@ -1,6 +1,7 @@
 import { initEnv } from "./plugins/env";
 import { createApp } from "./app";
 import { runMigrations } from "./db/migrate";
+import { runStartupTasks } from "./tasks";
 import { Indexer } from "./indexer/indexer";
 import {
   createNosanaClient,
@@ -15,6 +16,7 @@ import JobCleanerService from "./services/job-cleaner.service";
 initEnv();
 
 await runMigrations();
+await runStartupTasks();
 
 const config: PartialClientConfig = {
   solana: {
