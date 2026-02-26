@@ -1,10 +1,12 @@
 import { Elysia } from "elysia";
+import { cors } from "@elysiajs/cors";
 import { swagger } from "@elysiajs/swagger";
 import { jobsRouter } from "./modules/jobs";
 import { statsRouter, type StatsService } from "./modules/stats";
 
 export const createApp = (options?: { statsService?: StatsService }) => {
   const app = new Elysia()
+    .use(cors({ origin: true }))
     .use(
       swagger({
         path: "/swagger",
