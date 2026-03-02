@@ -404,6 +404,11 @@ export class Indexer {
           // Convert to USD per hour: price * nosPrice * 3600 seconds
           const usdRewardPerHour = (job.price / 1e6) * nosPrice * 3600; // Divide by 1e6 to convert from lamports to NOS
           updateData.usdRewardPerHour = usdRewardPerHour;
+          this.updateDailyTables(job).then(() => {
+            console.log(
+              `Updated daily tables for completed job ${job.address}`
+            );
+          });
         } else {
           console.log(
             `Could not get NOS price for job ${job.address} at listedAt ${listedAt}`
