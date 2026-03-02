@@ -40,7 +40,6 @@ export const createApp = (options?: { statsService?: StatsService }) => {
       console.error("Unhandled error:", error);
       return status(500, { message: "Internal server error" });
     })
-    .get("/", () => "Hi")
     .use(jobsRouter);
 
   if (options?.statsService) {

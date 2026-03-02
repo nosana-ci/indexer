@@ -52,14 +52,11 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
   .get(
     "/running-nodes",
     async ({ query, jobsService }) => {
-      if (!query.market) {
-        throw new Error("Please provide 'market' in query params");
-      }
       return await jobsService.getRunningNodesForMarket(query.market);
     },
     {
       query: t.Object({
-        market: t.Optional(t.String()),
+        market: t.String({ error: "Please provide 'market' in query params" }),
       }),
       detail: {
         summary: "Get running nodes for a market",
