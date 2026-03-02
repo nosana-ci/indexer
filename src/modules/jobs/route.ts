@@ -2,6 +2,7 @@ import { Elysia, t } from "elysia";
 import {
   getByAddressParams,
   jobResponse,
+  jobBatchItemResponse,
   GetJobsQuery,
   GetJobsCountQuery,
   GetLongRunningJobsQuery,
@@ -125,6 +126,28 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
         summary: "Count jobs",
         description:
           "Get total job count and counts per state (QUEUED, RUNNING, COMPLETED, STOPPED), with optional filtering by market, node, and project",
+        tags: ["Jobs"],
+      },
+    }
+  )
+  .post(
+    "/batch",
+    async ({ body, jobsService }) => {
+      return await jobsService.getJobsByAddresses(
+        body.addresses,
+        body.limit ?? 100
+      );
+    },
+    {
+      body: t.Object({
+        addresses: t.Array(t.String(), { minItems: 1, maxItems: 100 }),
+        limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100 })),
+      }),
+      response: { 200: t.Array(jobBatchItemResponse) },
+      detail: {
+        summary: "Get jobs by addresses",
+        description:
+          "Retrieve multiple jobs by a list of addresses (full job fields except jobDefinition and jobResult). Maximum of 100 addresses per request.",
         tags: ["Jobs"],
       },
     }

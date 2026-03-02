@@ -22,7 +22,7 @@ import {
   type StatsTimeSeries,
   jobStateMappingReverse,
 } from './model';
-import type { JobResponse } from './model';
+import type { JobResponse, JobBatchItemResponse } from './model';
 
 export class JobsService {
   private statsCache?: StatsType;
@@ -70,6 +70,15 @@ export class JobsService {
       jobs: result,
       totalJobs,
     };
+  }
+
+  async getJobsByAddresses(
+    addresses: string[],
+    limit: number
+  ): Promise<JobBatchItemResponse[]> {
+    const maxLimit = 100;
+    const effectiveLimit = Math.min(limit, maxLimit);
+    return this.jobsRepo.findByAddresses(addresses, effectiveLimit);
   }
 
   async getRunningJobs() {

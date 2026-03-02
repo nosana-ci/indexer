@@ -4,7 +4,7 @@ export const getByAddressParams = t.Object({
   address: t.String(),
 });
 
-export const jobResponse = t.Object({
+export const jobBatchItemResponse = t.Object({
   id: t.Number(),
   address: t.String(),
   ipfsJob: t.Nullable(t.String()),
@@ -16,8 +16,6 @@ export const jobResponse = t.Object({
   project: t.String(),
   state: t.Number(),
   type: t.Nullable(t.String()),
-  jobDefinition: t.Nullable(t.Any()),
-  jobResult: t.Nullable(t.Any()),
   jobStatus: t.Nullable(t.String()),
   timeEnd: t.Number(),
   timeStart: t.Number(),
@@ -26,8 +24,17 @@ export const jobResponse = t.Object({
   listedAt: t.Nullable(t.Number()),
 });
 
+export const jobResponse = t.Intersect([
+  jobBatchItemResponse,
+  t.Object({
+    jobDefinition: t.Nullable(t.Any()),
+    jobResult: t.Nullable(t.Any()),
+  }),
+]);
+
 export type GetJobByIdParams = typeof getByAddressParams.static;
 export type JobResponse = typeof jobResponse.static;
+export type JobBatchItemResponse = typeof jobBatchItemResponse.static;
 
 export enum JobState {
   QUEUED = 'QUEUED',

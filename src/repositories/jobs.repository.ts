@@ -199,6 +199,35 @@ export default class JobsRepository {
     return rows[0]?.count ?? 0;
   }
 
+  async findByAddresses(addresses: string[], limit: number) {
+    if (addresses.length === 0) return [];
+
+    return this.db
+      .select({
+        id: jobs.id,
+        address: jobs.address,
+        ipfsJob: jobs.ipfsJob,
+        ipfsResult: jobs.ipfsResult,
+        market: jobs.market,
+        node: jobs.node,
+        payer: jobs.payer,
+        price: jobs.price,
+        project: jobs.project,
+        state: jobs.state,
+        type: jobs.type,
+        jobStatus: jobs.jobStatus,
+        timeEnd: jobs.timeEnd,
+        timeStart: jobs.timeStart,
+        timeout: jobs.timeout,
+        usdRewardPerHour: jobs.usdRewardPerHour,
+        listedAt: jobs.listedAt,
+      })
+      .from(jobs)
+      .where(inArray(jobs.address, addresses))
+      .limit(limit)
+      .execute();
+  }
+
   /**
    * Returns job counts grouped by state, with optional filters (market, node, project).
    */
