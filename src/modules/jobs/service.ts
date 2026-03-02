@@ -57,12 +57,14 @@ export class JobsService {
         market: query.market,
         node: query.node,
         poster: query.poster,
+        payer: query.payer,
       }),
       this.jobsRepo.countMany({
         state,
         market: query.market,
         node: query.node,
         poster: query.poster,
+        payer: query.payer,
       }),
     ]);
 
@@ -90,17 +92,19 @@ export class JobsService {
   }
 
   /**
-   * Returns total job count and counts per state, with optional filters (market, node, project).
+   * Returns total job count and counts per state, with optional filters (market, node, project, payer).
    */
   async getJobsCount(query: {
     market?: string;
     node?: string;
     project?: string;
+    payer?: string;
   }) {
     const rows = await this.jobsRepo.countByState({
       market: query.market,
       node: query.node,
       project: query.project,
+      payer: query.payer,
     });
 
     const stateNames: Record<number, keyof typeof JobState> = {
@@ -185,6 +189,7 @@ export class JobsService {
       !query.market &&
       !query.node &&
       !query.poster &&
+      !query.payer &&
       !query.timeStart &&
       !query.timeEnd &&
       !query.groupBy &&
@@ -210,6 +215,9 @@ export class JobsService {
       }
       if (query.poster) {
         conditions.push(eq(jobs.project, query.poster));
+      }
+      if (query.payer) {
+        conditions.push(eq(jobs.payer, query.payer));
       }
       if (query.timeStart) {
         conditions.push(gte(jobs.timeStart, query.timeStart));

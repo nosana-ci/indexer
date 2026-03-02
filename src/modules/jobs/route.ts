@@ -34,7 +34,7 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
           detail: {
             summary: "List jobs",
             description:
-              "List jobs with optional filtering by state, market, node, and poster",
+              "List jobs with optional filtering by state, market, node, poster, and payer",
             tags: ["Jobs"],
           },
         }
@@ -92,7 +92,7 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
       detail: {
         summary: "Get job statistics",
         description:
-          "Get aggregated job statistics with optional grouping and time series",
+          "Get aggregated job statistics with optional grouping and time series (filter by market, node, poster, payer)",
         tags: ["Jobs"],
       },
     }
@@ -125,7 +125,7 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
       detail: {
         summary: "Count jobs",
         description:
-          "Get total job count and counts per state (QUEUED, RUNNING, COMPLETED, STOPPED), with optional filtering by market, node, and project",
+          "Get total job count and counts per state (QUEUED, RUNNING, COMPLETED, STOPPED), with optional filtering by market, node, project, and payer",
         tags: ["Jobs"],
       },
     }

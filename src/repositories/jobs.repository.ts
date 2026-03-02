@@ -160,13 +160,15 @@ export default class JobsRepository {
     market?: string;
     node?: string;
     poster?: string;
+    payer?: string;
   }) {
-    const { limit, offset, state, market, node, poster } = params;
+    const { limit, offset, state, market, node, poster, payer } = params;
     const conditions = [];
     if (state !== undefined) conditions.push(eq(jobs.state, state));
     if (market) conditions.push(eq(jobs.market, market));
     if (node) conditions.push(eq(jobs.node, node));
     if (poster) conditions.push(eq(jobs.project, poster));
+    if (payer) conditions.push(eq(jobs.payer, payer));
 
     return this.db
       .select()
@@ -183,13 +185,15 @@ export default class JobsRepository {
     market?: string;
     node?: string;
     poster?: string;
+    payer?: string;
   }) {
-    const { state, market, node, poster } = params;
+    const { state, market, node, poster, payer } = params;
     const conditions = [];
     if (state !== undefined) conditions.push(eq(jobs.state, state));
     if (market) conditions.push(eq(jobs.market, market));
     if (node) conditions.push(eq(jobs.node, node));
     if (poster) conditions.push(eq(jobs.project, poster));
+    if (payer) conditions.push(eq(jobs.payer, payer));
 
     const rows = await this.db
       .select({ count: count() })
@@ -229,18 +233,20 @@ export default class JobsRepository {
   }
 
   /**
-   * Returns job counts grouped by state, with optional filters (market, node, project).
+   * Returns job counts grouped by state, with optional filters (market, node, project, payer).
    */
   async countByState(params: {
     market?: string;
     node?: string;
     project?: string;
+    payer?: string;
   }): Promise<{ state: number; count: number }[]> {
-    const { market, node, project } = params;
+    const { market, node, project, payer } = params;
     const conditions = [];
     if (market) conditions.push(eq(jobs.market, market));
     if (node) conditions.push(eq(jobs.node, node));
     if (project) conditions.push(eq(jobs.project, project));
+    if (payer) conditions.push(eq(jobs.payer, payer));
 
     return this.db
       .select({ state: jobs.state, count: count() })
