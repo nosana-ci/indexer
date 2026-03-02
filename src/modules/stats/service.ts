@@ -120,8 +120,8 @@ export default class StatsService {
           timeUnstake: bigint;
           xnos: bigint;
         };
-        totalXNos = totalXNos + account.xnos;
-        let lockedAmount = account.amount;
+        totalXNos = totalXNos + BigInt(account.xnos);
+        let lockedAmount = BigInt(account.amount);
 
         const timeUnstakeNum = Number(account.timeUnstake);
         if (timeUnstakeNum > 0) {
