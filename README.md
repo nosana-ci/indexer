@@ -21,7 +21,6 @@ Base URL is the server root (e.g. `http://localhost:3000`). All job and stats en
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/` | Simple greeting. |
 | `GET` | `/health` | Health check and indexer status (running, last activity, uptime). |
 | `GET` | `/swagger` | OpenAPI docs (Scalar). |
 
@@ -29,20 +28,23 @@ Base URL is the server root (e.g. `http://localhost:3000`). All job and stats en
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/jobs` | List jobs with optional filters (state, market, node, poster, etc.). |
+| `GET` | `/jobs` | List jobs. Query: `limit`, `offset`, `state`, `market`, `node`, `poster`, `payer`, `timeStart`, `timeEnd`, `groupBy`, `timeSeriesInterval`, etc. |
 | `GET` | `/jobs/running` | Running job count per market. |
-| `GET` | `/jobs/running-nodes` | Running nodes for a market (query: `market`). |
-| `GET` | `/jobs/long-running` | Jobs running longer than their timeout (optional: `market`, `payer`). |
-| `GET` | `/jobs/stats` | Aggregated job statistics with optional grouping and time series. |
-| `GET` | `/jobs/stats/timestamps` | Job timestamps for a period (query: `period` in seconds). |
-| `GET` | `/jobs/:address` | Get a single job by address. |
+| `GET` | `/jobs/running-nodes` | Running node addresses for a market. Query: `market` (required). |
+| `GET` | `/jobs/long-running` | Jobs running longer than their timeout. Query: `market`, `payer`. |
+| `GET` | `/jobs/stats` | Aggregated job statistics (grouping, time series). Query: `market`, `node`, `poster`, `payer`, `timeStart`, `timeEnd`, `groupBy`, `timeSeriesInterval`, etc. |
+| `GET` | `/jobs/stats/timestamps` | Job timestamps for a period. Query: `period` (seconds). |
+| `GET` | `/jobs/count` | Total job count and counts per state (QUEUED, RUNNING, COMPLETED, STOPPED). Query: `market`, `node`, `project`, `payer`. |
+| `POST` | `/jobs/batch` | Get multiple jobs by address. Body: `{ "addresses": string[], "limit"?: number }` (max 100 addresses; returns subset of fields, no `jobDefinition`/`jobResult`). |
+| `GET` | `/jobs/:address` | Get a single job by address (full details). |
 
 ### Stats (`/stats`)
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/stats` | Latest platform statistics. |
-| `GET` | `/stats/spending-history` | Spending history for an address (query: `address`, `start_date`, `end_date`, `group_by`). |
+| `GET` | `/stats/price` | NOS price (USD). Query: optional `timestamp` (Unix seconds) or `date` (YYYY-MM-DD)—defaults to now; optional `maxAgeMinutes`. |
+| `GET` | `/stats/spending-history` | Spending history for an address. Query: `address`, `start_date`, `end_date`, `group_by`. |
 | `GET` | `/stats/earning-history` | Earning history for a node (same query shape). |
 
 ---
