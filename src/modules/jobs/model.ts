@@ -156,3 +156,19 @@ export const GetLongRunningJobsQuery = t.Object({
   market: t.Optional(t.String()),
   payer: t.Optional(t.String()),
 });
+
+export const GetJobsCountQuery = t.Object({
+  market: t.Optional(t.String()),
+  node: t.Optional(t.String()),
+  project: t.Optional(t.String()),
+});
+
+export const JobsCountResponse = t.Object({
+  total: t.Number(),
+  byState: t.Object({
+    QUEUED: t.Number(),
+    RUNNING: t.Number(),
+    COMPLETED: t.Number(),
+    STOPPED: t.Number(),
+  }),
+});

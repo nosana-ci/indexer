@@ -13,6 +13,7 @@ import { jobs, type SelectJob } from '../../db/tables/jobs';
 import JobsRepository from '../../repositories/jobs.repository';
 import {
   GroupBy,
+  JobState,
   type GetJobsQuery,
   type StatsType,
   type StatsTotals,
@@ -77,6 +78,46 @@ export class JobsService {
     return Object.fromEntries(
       runningJobs.map((k) => [k.market, { running: k.running }])
     );
+  }
+
+  /**
+   * Returns total job count and counts per state, with optional filters (market, node, project).
+   */
+  async getJobsCount(query: {
+    market?: string;
+    node?: string;
+    project?: string;
+  }) {
+    const rows = await this.jobsRepo.countByState({
+      market: query.market,
+      node: query.node,
+      project: query.project,
+    });
+
+    const stateNames: Record<number, keyof typeof JobState> = {
+      0: 'QUEUED',
+      1: 'RUNNING',
+      2: 'COMPLETED',
+      3: 'STOPPED',
+    };
+
+    const byState = {
+      [JobState.QUEUED]: 0,
+      [JobState.RUNNING]: 0,
+      [JobState.COMPLETED]: 0,
+      [JobState.STOPPED]: 0,
+    };
+
+    let total = 0;
+    for (const { state, count } of rows) {
+      const name = stateNames[state];
+      if (name !== undefined) {
+        byState[name] = Number(count);
+        total += Number(count);
+      }
+    }
+
+    return { total, byState };
   }
 
   /**

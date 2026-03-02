@@ -3,7 +3,9 @@ import {
   getByAddressParams,
   jobResponse,
   GetJobsQuery,
+  GetJobsCountQuery,
   GetLongRunningJobsQuery,
+  JobsCountResponse,
 } from "./model";
 import { JobsService } from "./service";
 import {
@@ -107,6 +109,22 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
       }),
       detail: {
         summary: "Get job timestamps",
+        tags: ["Jobs"],
+      },
+    }
+  )
+  .get(
+    "/count",
+    async ({ query, jobsService }) => {
+      return await jobsService.getJobsCount(query);
+    },
+    {
+      query: GetJobsCountQuery,
+      response: { 200: JobsCountResponse },
+      detail: {
+        summary: "Count jobs",
+        description:
+          "Get total job count and counts per state (QUEUED, RUNNING, COMPLETED, STOPPED), with optional filtering by market, node, and project",
         tags: ["Jobs"],
       },
     }

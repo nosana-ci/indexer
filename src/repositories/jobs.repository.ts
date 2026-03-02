@@ -199,6 +199,28 @@ export default class JobsRepository {
     return rows[0]?.count ?? 0;
   }
 
+  /**
+   * Returns job counts grouped by state, with optional filters (market, node, project).
+   */
+  async countByState(params: {
+    market?: string;
+    node?: string;
+    project?: string;
+  }): Promise<{ state: number; count: number }[]> {
+    const { market, node, project } = params;
+    const conditions = [];
+    if (market) conditions.push(eq(jobs.market, market));
+    if (node) conditions.push(eq(jobs.node, node));
+    if (project) conditions.push(eq(jobs.project, project));
+
+    return this.db
+      .select({ state: jobs.state, count: count() })
+      .from(jobs)
+      .where(conditions.length ? and(...conditions) : undefined)
+      .groupBy(jobs.state)
+      .execute();
+  }
+
   async countRunningByMarket() {
     return this.db
       .select({ running: count(), market: jobs.market })
