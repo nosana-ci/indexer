@@ -3,18 +3,20 @@ import { sql } from "drizzle-orm";
 import StatsRepository from "../../repositories/stats.repository";
 import parentLogger from "../../logger";
 import { ValidationError } from "../../errors";
+import {
+  type PeriodData,
+  type HistoryType,
+  groupRowsIntoPeriods,
+  attachDailyBreakdowns,
+  aggregateCurrentMonthFromDays,
+  aggregatePrevMonthFromDays,
+  formatMonthPrefix,
+  computeForecast,
+  computeMonthComparison,
+  computeSameDayComparison,
+} from "./stats-transforms";
 
 const logger = parentLogger.child({ module: "stats" });
-
-type PeriodData = {
-  total_usd: number;
-  breakdown: Array<{
-    market: string;
-    totalSpent?: number;
-    totalEarnedUsd?: number;
-  }>;
-  daily_breakdown?: Record<string, Record<string, number>>;
-};
 
 export default class StatsService {
   private readonly nosanaClient: NosanaClient;
@@ -186,7 +188,7 @@ export default class StatsService {
     startDate: string;
     endDate?: string;
     groupBy?: "day" | "month";
-    type: "spending" | "earnings";
+    type: HistoryType;
   }) {
     const { address, startDate, endDate, groupBy = "month", type } = params;
 
@@ -194,275 +196,23 @@ export default class StatsService {
       throw new ValidationError(`No ${type === "spending" ? "user" : "node"} address provided`);
     }
 
-    const parsedStartDate = new Date(startDate);
-    const startDateStr = parsedStartDate.toISOString().split("T")[0];
-    const parsedEndDate = endDate ? new Date(endDate) : new Date();
-    const endDateStr = parsedEndDate.toISOString().split("T")[0];
+    const startDateStr = new Date(startDate).toISOString().split("T")[0];
+    const endDateStr = (endDate ? new Date(endDate) : new Date()).toISOString().split("T")[0];
 
-    const toText = (value: unknown): string =>
-      typeof value === "string" ? value : String(value ?? "");
-    const toAmount = (value: unknown): number => {
-      const parsed = parseFloat(toText(value));
-      return Number.isFinite(parsed) ? parsed : 0;
-    };
-
-    const formatStr = groupBy === "day" ? "YYYY-MM-DD" : "YYYY-MM";
-
-    let query;
-    if (type === "spending") {
-      query = sql`
-        SELECT
-          to_char(daily_job_spend.date, ${formatStr}) as period_key,
-          daily_job_spend.market as market,
-          SUM(daily_job_spend.total_spent) as total_spent
-        FROM daily_job_spend
-        WHERE daily_job_spend.project = ${address}
-          AND daily_job_spend.date >= ${startDateStr}
-          AND daily_job_spend.date <= ${endDateStr}
-        GROUP BY 1,2
-        ORDER BY 1 DESC,2
-      `;
-    } else {
-      query = sql`
-        SELECT
-          to_char(daily_earnings.date, ${formatStr}) as period_key,
-          daily_earnings.market as market,
-          SUM(CAST(daily_earnings.total_earned_usd AS DECIMAL)) as amount
-        FROM daily_earnings
-        WHERE daily_earnings.node = ${address}
-          AND daily_earnings.date >= ${startDateStr}
-          AND daily_earnings.date <= ${endDateStr}
-        GROUP BY 1,2
-        ORDER BY 1 DESC,2
-      `;
-    }
-
-    const rows = await this.statsRepo.execute(query);
-
-    const periods: Record<string, PeriodData> = {};
-
-    for (const row of rows) {
-      const periodKey = toText(row.period_key);
-      const market = toText(row.market);
-      if (!periodKey || !market) continue;
-      const amount =
-        type === "spending"
-          ? toAmount((row as { total_spent: unknown }).total_spent)
-          : toAmount((row as { amount: unknown }).amount);
-
-      if (!periods[periodKey]) {
-        periods[periodKey] = {
-          total_usd: 0,
-          breakdown: [],
-          daily_breakdown: groupBy === "day" ? {} : undefined,
-        };
-      }
-
-      periods[periodKey].total_usd += amount;
-      periods[periodKey].breakdown.push(
-        type === "spending" ? { market, totalSpent: amount } : { market, totalEarnedUsd: amount },
-      );
-    }
+    const rows = await this.statsRepo.execute(
+      this.buildAggregationQuery(type, address, startDateStr, endDateStr, groupBy),
+    );
+    const periods = groupRowsIntoPeriods(rows, type, groupBy);
 
     if (groupBy === "month") {
-      let dailyQuery;
-      if (type === "spending") {
-        dailyQuery = sql`
-        SELECT
-          to_char(daily_job_spend.date, 'YYYY-MM-DD') as day_key,
-          daily_job_spend.market as market,
-          SUM(daily_job_spend.total_spent) as total_spent
-        FROM daily_job_spend
-        WHERE daily_job_spend.project = ${address}
-          AND daily_job_spend.date >= ${startDateStr}
-          AND daily_job_spend.date <= ${endDateStr}
-        GROUP BY 1, 2
-        ORDER BY 1, 2
-      `;
-      } else {
-        dailyQuery = sql`
-          SELECT
-            to_char(daily_earnings.date, 'YYYY-MM-DD') as day_key,
-            daily_earnings.market as market,
-            SUM(CAST(daily_earnings.total_earned_usd AS DECIMAL)) as amount
-          FROM daily_earnings
-          WHERE daily_earnings.node = ${address}
-            AND daily_earnings.date >= ${startDateStr}
-            AND daily_earnings.date <= ${endDateStr}
-          GROUP BY 1, 2
-          ORDER BY 1, 2
-      `;
-      }
-
-      const dailyRows = await this.statsRepo.execute(dailyQuery);
-
-      for (const row of dailyRows) {
-        const dayKey = toText(row.day_key);
-        const market = toText(row.market);
-        if (!dayKey || !market) continue;
-        const monthKey = dayKey.substring(0, 7);
-        const amount =
-          type === "spending"
-            ? toAmount((row as { total_spent: unknown }).total_spent)
-            : toAmount((row as { amount: unknown }).amount);
-
-        if (!periods[monthKey]) {
-          periods[monthKey] = {
-            total_usd: 0,
-            breakdown: [],
-            daily_breakdown: {},
-          };
-        }
-
-        if (!periods[monthKey].daily_breakdown) {
-          periods[monthKey].daily_breakdown = {};
-        }
-
-        if (!periods[monthKey].daily_breakdown![dayKey]) {
-          periods[monthKey].daily_breakdown![dayKey] = {};
-        }
-
-        periods[monthKey].daily_breakdown![dayKey][market] = amount;
-      }
+      const dailyRows = await this.statsRepo.execute(
+        this.buildDailyDetailQuery(type, address, startDateStr, endDateStr),
+      );
+      attachDailyBreakdowns(periods, dailyRows, type);
     }
 
-    let forecast: number | null = null;
-    let comparison: { prevMonthTotal: number; pctChange: number | null } | null = null;
-    let sameDayComparison: Record<string, number> | null = null;
-    let currentMonthUsd: Record<string, number> | null = null;
-
-    const currentDate = new Date();
-
-    let currentMonthData: PeriodData | null;
-    if (groupBy === "day") {
-      const currentMonthPrefix = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`;
-      const monthData: PeriodData = {
-        total_usd: 0,
-        breakdown: [],
-        daily_breakdown: {},
-      };
-      currentMonthData = monthData;
-
-      Object.keys(periods).forEach((periodKey) => {
-        if (periodKey.startsWith(currentMonthPrefix)) {
-          monthData.total_usd += periods[periodKey].total_usd;
-          periods[periodKey].breakdown.forEach((marketData) => {
-            const existingMarket = monthData.breakdown.find((b) => b.market === marketData.market);
-            if (existingMarket) {
-              if (type === "spending") {
-                existingMarket.totalSpent =
-                  (existingMarket.totalSpent || 0) + (marketData.totalSpent || 0);
-              } else {
-                existingMarket.totalEarnedUsd =
-                  (existingMarket.totalEarnedUsd || 0) + (marketData.totalEarnedUsd || 0);
-              }
-            } else {
-              monthData.breakdown.push({ ...marketData });
-            }
-          });
-        }
-      });
-    } else {
-      const currentMonthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`;
-      currentMonthData = periods[currentMonthKey] ?? null;
-    }
-
-    if (currentMonthData) {
-      const dayOfMonth = currentDate.getDate();
-      const daysInMonth = new Date(
-        currentDate.getFullYear(),
-        currentDate.getMonth() + 1,
-        0,
-      ).getDate();
-
-      forecast =
-        dayOfMonth > 0
-          ? (currentMonthData.total_usd * daysInMonth) / dayOfMonth
-          : currentMonthData.total_usd;
-
-      currentMonthUsd = {
-        [type === "spending" ? "currentMonthSpent" : "currentMonthEarned"]:
-          currentMonthData.total_usd,
-      };
-
-      const prevDate = new Date(currentDate);
-      prevDate.setMonth(prevDate.getMonth() - 1);
-      let prevMonthData: PeriodData | null;
-      if (groupBy === "day") {
-        const prevMonthPrefix = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
-        const previousMonthData: PeriodData = {
-          total_usd: 0,
-          breakdown: [],
-          daily_breakdown: {},
-        };
-        prevMonthData = previousMonthData;
-
-        Object.keys(periods).forEach((periodKey) => {
-          if (periodKey.startsWith(prevMonthPrefix)) {
-            previousMonthData.total_usd += periods[periodKey].total_usd;
-
-            if (!previousMonthData.daily_breakdown) {
-              previousMonthData.daily_breakdown = {};
-            }
-            const dailyBreakdown = previousMonthData.daily_breakdown;
-            dailyBreakdown[periodKey] = {};
-
-            periods[periodKey].breakdown.forEach((marketData) => {
-              const amount =
-                type === "spending" ? marketData.totalSpent || 0 : marketData.totalEarnedUsd || 0;
-              dailyBreakdown[periodKey][marketData.market] = amount;
-            });
-          }
-        });
-      } else {
-        const prevMonthKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
-        prevMonthData = periods[prevMonthKey] ?? null;
-      }
-
-      if (prevMonthData) {
-        const prevTotal = prevMonthData.total_usd;
-        comparison = {
-          prevMonthTotal: prevTotal,
-          pctChange: prevTotal > 0 ? ((forecast! - prevTotal) / prevTotal) * 100 : null,
-        };
-
-        if (
-          prevMonthData.daily_breakdown &&
-          Object.keys(prevMonthData.daily_breakdown).length > 0
-        ) {
-          const maxDaysInPrevMonth = new Date(
-            prevDate.getFullYear(),
-            prevDate.getMonth() + 1,
-            0,
-          ).getDate();
-          const sameDayInPrevMonth = Math.min(dayOfMonth, maxDaysInPrevMonth);
-          let amountUpToSameDayLastMonth = 0;
-
-          Object.entries(prevMonthData.daily_breakdown).forEach(([dayKey, marketValues]) => {
-            const dayOfMonthFromKey = parseInt(dayKey.slice(-2), 10);
-            if (dayOfMonthFromKey <= sameDayInPrevMonth) {
-              Object.values(marketValues).forEach((amount) => {
-                amountUpToSameDayLastMonth += amount;
-              });
-            }
-          });
-
-          const pctChangeSoFar =
-            amountUpToSameDayLastMonth > 0
-              ? ((currentMonthData.total_usd - amountUpToSameDayLastMonth) /
-                  amountUpToSameDayLastMonth) *
-                100
-              : null;
-          sameDayComparison = {
-            [type === "spending" ? "sameDayLastMonthSpent" : "sameDayLastMonthEarned"]:
-              amountUpToSameDayLastMonth,
-            [type === "spending" ? "currentMonthSpent" : "currentMonthEarned"]:
-              currentMonthData.total_usd,
-            ...(pctChangeSoFar !== null && { pctChangeSoFar }),
-          };
-        }
-      }
-    }
+    const { forecast, comparison, sameDayComparison, currentMonthUsd } =
+      this.computeAnalytics(periods, groupBy, type);
 
     return {
       address,
@@ -480,6 +230,135 @@ export default class StatsService {
       sameDayComparison,
       currentMonth: currentMonthUsd,
     };
+  }
+
+  private buildAggregationQuery(
+    type: HistoryType,
+    address: string,
+    startDateStr: string,
+    endDateStr: string,
+    groupBy: "day" | "month",
+  ) {
+    const formatStr = groupBy === "day" ? "YYYY-MM-DD" : "YYYY-MM";
+    if (type === "spending") {
+      return sql`
+        SELECT
+          to_char(daily_job_spend.date, ${formatStr}) as period_key,
+          daily_job_spend.market as market,
+          SUM(daily_job_spend.total_spent) as total_spent
+        FROM daily_job_spend
+        WHERE daily_job_spend.project = ${address}
+          AND daily_job_spend.date >= ${startDateStr}
+          AND daily_job_spend.date <= ${endDateStr}
+        GROUP BY 1,2
+        ORDER BY 1 DESC,2
+      `;
+    }
+    return sql`
+      SELECT
+        to_char(daily_earnings.date, ${formatStr}) as period_key,
+        daily_earnings.market as market,
+        SUM(CAST(daily_earnings.total_earned_usd AS DECIMAL)) as amount
+      FROM daily_earnings
+      WHERE daily_earnings.node = ${address}
+        AND daily_earnings.date >= ${startDateStr}
+        AND daily_earnings.date <= ${endDateStr}
+      GROUP BY 1,2
+      ORDER BY 1 DESC,2
+    `;
+  }
+
+  private buildDailyDetailQuery(
+    type: HistoryType,
+    address: string,
+    startDateStr: string,
+    endDateStr: string,
+  ) {
+    if (type === "spending") {
+      return sql`
+        SELECT
+          to_char(daily_job_spend.date, 'YYYY-MM-DD') as day_key,
+          daily_job_spend.market as market,
+          SUM(daily_job_spend.total_spent) as total_spent
+        FROM daily_job_spend
+        WHERE daily_job_spend.project = ${address}
+          AND daily_job_spend.date >= ${startDateStr}
+          AND daily_job_spend.date <= ${endDateStr}
+        GROUP BY 1, 2
+        ORDER BY 1, 2
+      `;
+    }
+    return sql`
+      SELECT
+        to_char(daily_earnings.date, 'YYYY-MM-DD') as day_key,
+        daily_earnings.market as market,
+        SUM(CAST(daily_earnings.total_earned_usd AS DECIMAL)) as amount
+      FROM daily_earnings
+      WHERE daily_earnings.node = ${address}
+        AND daily_earnings.date >= ${startDateStr}
+        AND daily_earnings.date <= ${endDateStr}
+      GROUP BY 1, 2
+      ORDER BY 1, 2
+    `;
+  }
+
+  private computeAnalytics(
+    periods: Record<string, PeriodData>,
+    groupBy: "day" | "month",
+    type: HistoryType,
+  ) {
+    let forecast: number | null = null;
+    let comparison: { prevMonthTotal: number; pctChange: number | null } | null = null;
+    let sameDayComparison: Record<string, number> | null = null;
+    let currentMonthUsd: Record<string, number> | null = null;
+
+    const currentDate = new Date();
+    const currentMonthPrefix = formatMonthPrefix(currentDate);
+
+    const currentMonthData: PeriodData | null =
+      groupBy === "day"
+        ? aggregateCurrentMonthFromDays(periods, currentMonthPrefix, type)
+        : (periods[currentMonthPrefix] ?? null);
+
+    if (!currentMonthData) {
+      return { forecast, comparison, sameDayComparison, currentMonthUsd };
+    }
+
+    const dayOfMonth = currentDate.getDate();
+    const daysInMonth = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth() + 1,
+      0,
+    ).getDate();
+
+    forecast = computeForecast(currentMonthData.total_usd, dayOfMonth, daysInMonth);
+
+    currentMonthUsd = {
+      [type === "spending" ? "currentMonthSpent" : "currentMonthEarned"]:
+        currentMonthData.total_usd,
+    };
+
+    const prevDate = new Date(currentDate);
+    prevDate.setMonth(prevDate.getMonth() - 1);
+    const prevMonthPrefix = formatMonthPrefix(prevDate);
+
+    const prevMonthData: PeriodData | null =
+      groupBy === "day"
+        ? aggregatePrevMonthFromDays(periods, prevMonthPrefix, type)
+        : (periods[prevMonthPrefix] ?? null);
+
+    if (prevMonthData) {
+      comparison = computeMonthComparison(forecast, prevMonthData.total_usd);
+      sameDayComparison = computeSameDayComparison(
+        prevMonthData,
+        currentMonthData.total_usd,
+        dayOfMonth,
+        prevDate,
+        type,
+      );
+    }
+
+    return { forecast, comparison, sameDayComparison, currentMonthUsd };
   }
 
   async getSpendingHistory(
