@@ -16,6 +16,9 @@ import { getNosPrice } from "../services/price.service";
 import JobsRepository from "../repositories/jobs.repository";
 import DailyEarningsRepository from "../repositories/daily-earnings.repository";
 import DailyJobSpendRepository from "../repositories/daily-job-spend.repository";
+import parentLogger from "../logger";
+
+const logger = parentLogger.child({ module: "indexer" });
 
 export class Indexer {
   private nosanaClient: NosanaClient;
@@ -81,24 +84,24 @@ export class Indexer {
         this.updateActivity();
 
         if (event.type === MonitorEventType.JOB) {
-          console.log("JobAccount change:", event.data.address);
+          logger.debug({ address: event.data.address }, "JobAccount change");
           const updatedJob = await this.handleJobUpdate(event.data);
           if (updatedJob) {
-            console.log(`(WebSocket) Updated/Inserted job account data for ${updatedJob.address}`);
+            logger.debug({ address: updatedJob.address }, "WebSocket updated/inserted job account data");
           }
         } else if (event.type === MonitorEventType.MARKET) {
-          console.log("MarketAccount change:", event.data.address);
+          logger.debug({ address: event.data.address }, "MarketAccount change");
           await this.handleMarketUpdate(event.data);
         } else if (event.type === MonitorEventType.RUN) {
-          console.log("RunAccount change:", event.data.address);
+          logger.debug({ address: event.data.address }, "RunAccount change");
           const updatedJob = await this.handleRunUpdate(event.data);
           if (updatedJob) {
-            console.log(`(WebSocket) Updated/Inserted job account data for ${updatedJob.address}`);
+            logger.debug({ address: updatedJob.address }, "WebSocket updated/inserted job account data");
           }
         }
       }
     })().catch((error) => {
-      console.error("Monitor event stream error:", error);
+      logger.error({ err: error }, "Monitor event stream error");
     });
   }
 
@@ -114,14 +117,10 @@ export class Indexer {
   async handleRunUpdate(runAccount: Run): Promise<SelectJob | null> {
     let jobFromRun = await this.nosanaClient.jobs.get(runAccount.job, false);
     if (!jobFromRun) {
-      console.error(
-        `(WebSocket) Could not get job account data from run account ${runAccount.address}`,
-      );
+      logger.error({ runAddress: runAccount.address }, "Could not get job account data from run account");
       return null;
     }
-    console.log(
-      `(WebSocket) Found job ${jobFromRun.address} belonging to run ${runAccount.address}`,
-    );
+    logger.debug({ jobAddress: jobFromRun.address, runAddress: runAccount.address }, "Found job belonging to run");
     jobFromRun = {
       ...jobFromRun,
       state: 1,
@@ -154,13 +153,11 @@ export class Indexer {
           try {
             const exists = await checkJobExists(this.nosanaClient, removeJobsFromDb[i]);
             if (!exists) {
-              console.log(
-                `Could not find queued job ${removeJobsFromDb[i]} on-chain, it was probably delisted, removing from db..`,
-              );
+              logger.info({ job: removeJobsFromDb[i] }, "Queued job not found on-chain, removing from db");
               await this.jobsRepo.delete(removeJobsFromDb[i]);
             }
           } catch (e: unknown) {
-            console.log("Could not check job account on-chain", e);
+            logger.error({ err: e }, "Could not check job account on-chain");
           }
         }
       }
@@ -178,8 +175,9 @@ export class Indexer {
         existingJobData.timeout >= job.timeout &&
         existingJobData.ipfsResult === job.ipfsResult
       ) {
-        console.log(
-          `Skipped update as new state ${job.state} is smaller or same as old state ${existingJobData.state} with no timeout or result update`,
+        logger.debug(
+          { job: job.address.toString(), newState: job.state, oldState: existingJobData.state },
+          "Skipped update as new state is smaller or same with no timeout or result update",
         );
         return null;
       }
@@ -201,10 +199,10 @@ export class Indexer {
         // Optional: Process the job immediately after insert/update (non-blocking)
         this.processJob(newJob)
           .then(() => {
-            console.log(`Immediately processed job ${newJob.address}`);
+            logger.debug({ job: newJob.address }, "Immediately processed job");
           })
           .catch((error) => {
-            console.error(`Failed to immediately process job ${newJob.address}:`, error);
+            logger.error({ err: error, job: newJob.address }, "Failed to immediately process job");
           });
 
         if (
@@ -212,7 +210,7 @@ export class Indexer {
           (!existingJobData || existingJobData.state !== JobState.COMPLETED)
         ) {
           this.updateDailyTables(newJob).then(() => {
-            console.log(`Updated daily tables for completed job ${newJob.address}`);
+            logger.debug({ job: newJob.address }, "Updated daily tables for completed job");
           });
         }
       }
@@ -250,7 +248,7 @@ export class Indexer {
           totalSpent: totalUsdEarned,
         });
       } catch (error) {
-        console.error(`Error updating daily tables for job ${job.address}:`, error);
+        logger.error({ err: error, job: job.address }, "Error updating daily tables");
       }
     }
   }
@@ -264,33 +262,35 @@ export class Indexer {
         const updatedJob = await this.handleJobUpdate(job);
         if (updatedJob) {
           inserted++;
-          console.log(
-            `(JOBS GPA ${index}/${accounts.length}) Updated/Inserted account data for ${updatedJob.address}`,
+          logger.debug(
+            { index, total: accounts.length, address: updatedJob.address },
+            "JOBS GPA updated/inserted account data",
           );
         }
       }
 
-      console.log(`(JOBS GPA) Updated/Inserted ${inserted} out of ${accounts.length} jobs`);
+      logger.info({ inserted, total: accounts.length }, "JOBS GPA completed");
     } catch (e) {
-      console.error("Error in jobsGPA:", e);
+      logger.error({ err: e }, "Error in jobsGPA");
     }
   }
 
   async marketsGPA() {
     try {
       const markets = await this.nosanaClient.jobs.markets();
-      console.log(`(MARKETS GPA) Processing ${markets.length} markets`);
+      logger.info({ count: markets.length }, "MARKETS GPA processing");
 
       for (const [index, market] of markets.entries()) {
-        console.log(
-          `(MARKETS GPA ${index + 1}/${markets.length}) Processing market ${market.address}`,
+        logger.debug(
+          { index: index + 1, total: markets.length, address: market.address },
+          "MARKETS GPA processing market",
         );
         await this.handleMarketUpdate(market);
       }
 
-      console.log(`(MARKETS GPA) Processed ${markets.length} markets`);
+      logger.info({ count: markets.length }, "MARKETS GPA completed");
     } catch (e) {
-      console.error("Error in marketsGPA:", e);
+      logger.error({ err: e }, "Error in marketsGPA");
     }
   }
 
@@ -302,35 +302,36 @@ export class Indexer {
       });
 
       if (!jobsToProcess.length) {
-        console.log("(PROCESS JOBS) No jobs to process");
+        logger.info("No jobs to process");
         return;
       }
 
-      console.log(`(PROCESS JOBS) Processing ${jobsToProcess.length} jobs`);
+      logger.info({ count: jobsToProcess.length }, "Processing jobs");
 
       for (const [index, job] of jobsToProcess.entries()) {
-        console.log(
-          `(PROCESS JOBS ${index + 1}/${jobsToProcess.length}) Processing job ${job.address}`,
+        logger.debug(
+          { index: index + 1, total: jobsToProcess.length, job: job.address },
+          "Processing job",
         );
 
         try {
           const processed = await this.processJob(job);
           if (processed) {
-            console.log(`(PROCESS JOBS) Successfully processed job ${job.address}`);
+            logger.debug({ job: job.address }, "Successfully processed job");
           }
         } catch (error) {
-          console.error(`(PROCESS JOBS) Failed to process job ${job.address}:`, error);
+          logger.error({ err: error, job: job.address }, "Failed to process job");
         }
       }
 
-      console.log(`(PROCESS JOBS) Completed processing ${jobsToProcess.length} jobs`);
+      logger.info({ count: jobsToProcess.length }, "Completed processing jobs");
     } catch (e) {
-      console.error("Error in processJobs:", e);
+      logger.error({ err: e }, "Error in processJobs");
     }
   }
 
   private async processJob(job: SelectJob): Promise<boolean> {
-    console.log(`Processing job ${job.address} with state ${job.state}`);
+    logger.debug({ job: job.address, state: job.state }, "Processing job");
 
     // Prepare update data object
     const updateData: Partial<InsertJob> = {};
@@ -343,10 +344,10 @@ export class Indexer {
         if (listSignature && listSignature.blockTime) {
           updateData.listedAt = Number(listSignature.blockTime);
         } else {
-          console.log(`no transaction found for job ${job.address}`);
+          logger.debug({ job: job.address }, "No transaction found for job");
         }
       } catch (error) {
-        console.log(`cant retrieve list transaction for job ${job.address}, ${error}`);
+        logger.error({ err: error, job: job.address }, "Cannot retrieve list transaction for job");
       }
     }
     const listedAt = job.listedAt || updateData.listedAt;
@@ -363,13 +364,13 @@ export class Indexer {
           const usdRewardPerHour = (job.price / 1e6) * nosPrice * 3600; // Divide by 1e6 to convert from lamports to NOS
           updateData.usdRewardPerHour = usdRewardPerHour;
           this.updateDailyTables(job).then(() => {
-            console.log(`Updated daily tables for completed job ${job.address}`);
+            logger.debug({ job: job.address }, "Updated daily tables for completed job");
           });
         } else {
-          console.log(`Could not get NOS price for job ${job.address} at listedAt ${listedAt}`);
+          logger.debug({ job: job.address, listedAt }, "Could not get NOS price for job");
         }
       } catch (error) {
-        console.error(`Error calculating usdRewardPerHour for job ${job.address}:`, error);
+        logger.error({ err: error, job: job.address }, "Error calculating usdRewardPerHour");
       }
     }
 
@@ -384,9 +385,9 @@ export class Indexer {
         updateData.jobDefinition = JSON.stringify(jobDefinition);
         updateData.type = newJobType;
 
-        console.log(`Retrieved job definition for ${job.address} with type: ${newJobType}`);
+        logger.debug({ job: job.address, type: newJobType }, "Retrieved job definition");
       } catch (error) {
-        console.log(`cant retrieve job definition of job ${job.address}, ${error}`);
+        logger.error({ err: error, job: job.address }, "Cannot retrieve job definition");
       }
     }
 
@@ -416,10 +417,9 @@ export class Indexer {
           updateData.jobStatus = result.status;
         }
 
-        console.log(`Retrieved job result for ${job.address} with status: ${result.status}`);
+        logger.debug({ job: job.address, status: result.status }, "Retrieved job result");
       } catch (error: unknown) {
-        console.error("couldnt process job results ", job.address);
-        console.error(error instanceof Error ? error.message : String(error));
+        logger.error({ err: error, job: job.address }, "Could not process job results");
       }
     }
 
@@ -428,10 +428,10 @@ export class Indexer {
       try {
         await this.jobsRepo.simpleUpdate(job.address, updateData);
 
-        console.log(`Updated job ${job.address} with:`, Object.keys(updateData).join(", "));
+        logger.debug({ job: job.address, fields: Object.keys(updateData) }, "Updated job");
         return true;
       } catch (error) {
-        console.error(`Failed to update job ${job.address}:`, error);
+        logger.error({ err: error, job: job.address }, "Failed to update job");
       }
     }
     return false;

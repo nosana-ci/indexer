@@ -8,6 +8,7 @@ import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { cron } from "@elysiajs/cron";
 import { StatsService } from "./modules/stats";
 import JobCleanerService from "./services/job-cleaner.service";
+import logger from "./logger";
 
 initEnv();
 
@@ -39,9 +40,9 @@ if (process.env.CLEAN_ADMIN_PRIVATE_KEY) {
     const keyBytes = new Uint8Array(JSON.parse(process.env.CLEAN_ADMIN_PRIVATE_KEY));
     const adminSigner = await createKeyPairSignerFromBytes(keyBytes);
     jobCleanerService = new JobCleanerService(nosanaClient, adminSigner);
-    console.log(`Job cleaner enabled with admin address: ${adminSigner.address}`);
+    logger.debug({ adminAddress: adminSigner.address }, "Job cleaner enabled");
   } catch (error) {
-    console.error("Failed to initialize job cleaner:", error);
+    logger.error({ err: error }, "Failed to initialize job cleaner");
   }
 }
 
@@ -67,14 +68,14 @@ const app = createApp({ statsService })
       name: "jobs-gpa",
       pattern: "*/5 * * * *",
       async run() {
-        console.log("🚀 Running Jobs GPA and Markets GPA...");
+        logger.info("Running Jobs GPA and Markets GPA");
         try {
           await indexer.jobsGPA();
-          console.log("✅ Jobs GPA completed successfully");
+          logger.info("Jobs GPA completed successfully");
           await indexer.marketsGPA();
-          console.log("✅ Markets GPA completed successfully");
+          logger.info("Markets GPA completed successfully");
         } catch (error) {
-          console.error("❌ Jobs GPA or Markets GPA failed:", error);
+          logger.error({ err: error }, "Jobs GPA or Markets GPA failed");
         }
       },
     }),
@@ -84,12 +85,12 @@ const app = createApp({ statsService })
       name: "job-processing",
       pattern: "*/2 * * * *",
       async run() {
-        console.log("🚀 Running Job Processing...");
+        logger.info("Running Job Processing");
         try {
           await indexer.processJobs();
-          console.log("✅ Job Processing completed successfully");
+          logger.info("Job Processing completed successfully");
         } catch (error) {
-          console.error("❌ Job Processing failed:", error);
+          logger.error({ err: error }, "Job Processing failed");
         }
       },
     }),
@@ -99,12 +100,12 @@ const app = createApp({ statsService })
       name: "refresh-stats",
       pattern: "*/5 * * * *",
       async run() {
-        console.log("🚀 Refresh Stats");
+        logger.info("Refreshing stats");
         try {
           await statsService.refreshStats();
-          console.log("✅ Refresh Stats completed successfully");
+          logger.info("Refresh stats completed successfully");
         } catch (error) {
-          console.error("❌ Refresh Stats failed:", error);
+          logger.error({ err: error }, "Refresh stats failed");
         }
       },
     }),
@@ -117,12 +118,12 @@ if (jobCleanerService) {
       name: "job-cleaner",
       pattern: "0 */6 * * *",
       async run() {
-        console.log("🧹 Running Job Cleaner...");
+        logger.info("Running Job Cleaner");
         try {
           await cleaner.cleanJobs();
-          console.log("✅ Job Cleaner completed successfully");
+          logger.info("Job Cleaner completed successfully");
         } catch (error) {
-          console.error("❌ Job Cleaner failed:", error);
+          logger.error({ err: error }, "Job Cleaner failed");
         }
       },
     }),
@@ -131,19 +132,19 @@ if (jobCleanerService) {
 
 app.listen(Number(process.env.PORT) || 3000);
 
-console.log(`⛓️ Blockchain Indexer is running at ${app.server?.hostname}:${app.server?.port}`);
+logger.info({ host: app.server?.hostname, port: app.server?.port }, "Blockchain Indexer is running");
 
 try {
-  console.log("🚀 Starting indexer WebSocket monitoring...");
+  logger.info("Starting indexer WebSocket monitoring");
   await indexer.start();
-  console.log("✅ Indexer WebSocket monitoring started");
+  logger.info("Indexer WebSocket monitoring started");
 } catch (error) {
-  console.error("❌ Failed to start indexer WebSocket monitoring:", error);
-  console.log("🚀 API server will continue running...");
+  logger.error({ err: error }, "Failed to start indexer WebSocket monitoring");
+  logger.info("API server will continue running");
 }
 
 const shutdown = () => {
-  console.log("🛑 Shutting down gracefully...");
+  logger.info("Shutting down gracefully");
   indexer.stop();
   process.exit(0);
 };

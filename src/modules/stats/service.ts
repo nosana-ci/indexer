@@ -1,6 +1,9 @@
 import type { NosanaClient } from "@nosana/kit";
 import { sql } from "drizzle-orm";
 import StatsRepository from "../../repositories/stats.repository";
+import parentLogger from "../../logger";
+
+const logger = parentLogger.child({ module: "stats" });
 
 type PeriodData = {
   total_usd: number;
@@ -79,7 +82,7 @@ export default class StatsService {
         dailyPriceChange: nosStats.dailyPriceChange ? Number(nosStats.dailyPriceChange) : null,
       });
     } catch (error) {
-      console.log("Failed to refresh main stats:", error);
+      logger.error({ err: error }, "Failed to refresh main stats");
     }
   }
 
@@ -121,7 +124,7 @@ export default class StatsService {
             const percentageLocked = 1 - percentagePassed;
             lockedAmount = BigInt(Math.floor(Number(account.amount) * percentageLocked));
           } catch (error) {
-            console.error(`Failed to calculate locked amount for stake account:`, error);
+            logger.error({ err: error }, "Failed to calculate locked amount for stake account");
           }
         }
 
@@ -134,7 +137,7 @@ export default class StatsService {
         xNosStaked: Number(totalXNos) / 1e6,
       };
     } catch (error) {
-      console.error("couldnt fetch stake stats", error);
+      logger.error({ err: error }, "Could not fetch stake stats");
       return {
         stakers: null,
         nosStaked: null,
@@ -164,7 +167,7 @@ export default class StatsService {
         price = data.market_data.current_price?.usd;
       }
     } catch (error) {
-      console.log("cant fetch nos stats", error);
+      logger.error({ err: error }, "Could not fetch NOS stats");
     }
     return {
       marketCap,

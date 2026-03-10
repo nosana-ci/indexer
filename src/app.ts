@@ -3,6 +3,7 @@ import { cors } from "@elysiajs/cors";
 import { swagger } from "@elysiajs/swagger";
 import { jobsRouter } from "./modules/jobs";
 import { statsRouter, type StatsService } from "./modules/stats";
+import logger from "./logger";
 
 export const securityHeaders = {
   "X-Content-Type-Options": "nosniff",
@@ -40,7 +41,7 @@ export const createApp = (options?: { statsService?: StatsService }) => {
         };
         return status(errStatus, { message });
       }
-      console.error("Unhandled error:", error);
+      logger.error({ err: error }, "Unhandled error");
       return status(500, { message: "Internal server error" });
     })
     .use(jobsRouter);

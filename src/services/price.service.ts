@@ -1,6 +1,9 @@
 import { getDb } from "../db/client";
 import { stats } from "../db/tables/stats";
 import { sql } from "drizzle-orm";
+import parentLogger from "../logger";
+
+const logger = parentLogger.child({ module: "price" });
 
 /**
  * Gets NOS price at a specific timestamp with caching and fallback.
@@ -28,14 +31,14 @@ export async function getNosPrice(
     // Fallback: try to get the closest available cached price (within 12 hours)
     const fallbackPrice = await getCachedNosPrice(targetTimestamp, 12 * 60 * 60 * 1000);
     if (fallbackPrice !== null) {
-      console.warn(`Using fallback cached price for timestamp ${targetTimestamp.toISOString()}`);
+      logger.warn({ timestamp: targetTimestamp.toISOString() }, "Using fallback cached price");
       return fallbackPrice;
     }
 
-    console.error(`No NOS price available for timestamp ${targetTimestamp.toISOString()}`);
+    logger.error({ timestamp: targetTimestamp.toISOString() }, "No NOS price available");
     return null;
   } catch (error) {
-    console.error("Error getting NOS price:", error);
+    logger.error({ err: error }, "Error getting NOS price");
     return null;
   }
 }
@@ -66,7 +69,7 @@ async function getCachedNosPrice(targetTimestamp: Date, maxAgeMs: number): Promi
 
     return null;
   } catch (error) {
-    console.error("Error getting cached NOS price:", error);
+    logger.error({ err: error }, "Error getting cached NOS price");
     return null;
   }
 }
@@ -83,7 +86,7 @@ async function fetchNosPrice(timestamp: Date): Promise<number | null> {
     );
 
     if (!response.ok) {
-      console.error(`CoinGecko API error: ${response.status} ${response.statusText}`);
+      logger.error({ status: response.status, statusText: response.statusText }, "CoinGecko API error");
       return null;
     }
 
@@ -92,10 +95,10 @@ async function fetchNosPrice(timestamp: Date): Promise<number | null> {
       return data.market_data.current_price.usd;
     }
 
-    console.warn(`No price data available from CoinGecko for date ${dateStr}`);
+    logger.warn({ date: dateStr }, "No price data available from CoinGecko");
     return null;
   } catch (error) {
-    console.error("Error fetching NOS price from CoinGecko:", error);
+    logger.error({ err: error }, "Error fetching NOS price from CoinGecko");
     return null;
   }
 }
@@ -111,6 +114,6 @@ async function cacheNosPrice(timestamp: Date, price: number): Promise<void> {
       })
       .execute();
   } catch (error) {
-    console.error("Error caching NOS price:", error);
+    logger.error({ err: error }, "Error caching NOS price");
   }
 }
