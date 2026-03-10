@@ -323,7 +323,7 @@ export default class JobsRepository {
     );
   }
 
-  createStatsBucketedCte(baseCte: any, timeSeriesInterval: string, groupByMarket: boolean) {
+  createStatsBucketedCte(baseCte: any, timeSeriesInterval: string, _groupByMarket: boolean) {
     return this.withAlias("jobs_bucketed").as(
       this.db
         .with(baseCte)

@@ -10,7 +10,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'lcov'],
-      reportsDir: './coverage',
+      reportsDirectory: './coverage',
       exclude: ['node_modules/', 'tests/', '**/*.test.ts', '**/*.d.ts'],
     },
     reporters: process.env.CI ? ['default', 'junit'] : ['default'],

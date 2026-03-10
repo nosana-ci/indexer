@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Elysia, t } from 'elysia';
+import { Elysia } from 'elysia';
 
 const { mockJobsService } = vi.hoisted(() => {
   const mockJobsService = {

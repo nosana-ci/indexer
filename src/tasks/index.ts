@@ -1,7 +1,10 @@
 import { getDb } from "../db/client";
 import { appTasksHistory } from "../db/tables/app-tasks-history";
 import { eq } from "drizzle-orm";
-import { populateEarningAndSpendingDB } from "./populate-earnings-spending";
+
+import parentLogger from "../logger";
+
+const logger = parentLogger.child({ module: "startup-tasks" });
 
 /**
  * Interface for defining one-time startup tasks.
