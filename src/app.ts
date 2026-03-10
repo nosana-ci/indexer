@@ -13,7 +13,7 @@ export const securityHeaders = {
 
 export const createApp = (options?: { statsService?: StatsService }) => {
   const app = new Elysia()
-    .use(cors({ origin: true }))
+    .use(cors({ origin: process.env.CORS_ORIGIN ?? true }))
     .use(
       swagger({
         path: "/swagger",
