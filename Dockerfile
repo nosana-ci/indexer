@@ -15,12 +15,12 @@ RUN cd /temp/prod && bun install --frozen-lockfile --production
 # copy production dependencies and source code into final image
 FROM base AS release
 COPY --from=install /temp/prod/node_modules node_modules
-COPY src .
+COPY src ./src
 COPY drizzle ./drizzle
-COPY .env.prd .
-COPY .env.dev .
+
+ENV SOLANA_NETWORK=mainnet
 
 # run the app
 USER bun
 EXPOSE 3000/tcp
-ENTRYPOINT [ "bun", "run", "index.ts" ]
+ENTRYPOINT [ "bun", "run", "src/index.ts" ]

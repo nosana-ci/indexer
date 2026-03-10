@@ -18,6 +18,7 @@ services:
     environment:
       - APP_ENV=local
       - PORT=3003
+      - SOLANA_NETWORK=devnet
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=nosana_indexer

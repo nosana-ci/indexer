@@ -1,0 +1,8 @@
+.env*
+.git
+node_modules
+tests
+docker
+coverage
+*.md
+junit.xml

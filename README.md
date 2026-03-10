@@ -58,23 +58,35 @@ Base URL is the server root (e.g. `http://localhost:3000`). All job and stats en
 
 ### Environment
 
-Env is loaded in this order:
+Environment variables are loaded in this order:
 
-1. `.env`
-2. `.env.${APP_ENV}` (overrides `.env`)
+1. `.env` (if present)
+2. `.env.${APP_ENV}` (overrides `.env`, where `APP_ENV` is e.g. `local`, `development`)
 
-Create a local env file:
+Key variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SOLANA_NETWORK` | Solana cluster (`mainnet` or `devnet`) | `mainnet` |
+| `DATABASE_URL` | PostgreSQL connection string | — |
+| `SOLANA_RPC` | RPC endpoint | defaults for network |
+| `PORT` | Server port | `3000` |
+
+> **No env files are baked into the Docker image.** Previously `.env.prd` and `.env.dev` were
+> copied into the image and tracked in git. This was removed because baking env files into images
+> risks leaking secrets if credentials are ever added, couples the image to a specific environment,
+> and requires rebuilding to change configuration. Instead, `SOLANA_NETWORK` defaults to `mainnet`
+> in the Dockerfile and should be overridden at runtime for other environments (see
+> [Deployment](#deployment) below).
+
+For local development, the Docker Compose setup passes all variables directly. For running
+outside Docker, create a `.env` file:
 
 ```bash
-cp env.local.example .env
+cp .env.development .env
 ```
 
-Configure at least:
-
-- `DATABASE_URL` – PostgreSQL connection string
-- `SOLANA_RPC` – RPC endpoint (optional; defaults for network)
-- `SOLANA_NETWORK` – e.g. `mainnet` or `devnet`
-- `PORT` – server port (default `3000`)
+Edit as needed — `.env` is gitignored.
 
 ### Run with Docker Compose (recommended)
 
@@ -142,3 +154,34 @@ bun run test           # run once
 bun run test:watch     # watch mode
 bun run test:coverage  # with coverage
 ```
+
+---
+
+## Deployment
+
+The Docker image does not contain any environment files. All environment-specific configuration
+must be injected at runtime.
+
+### Docker
+
+```bash
+docker run -e SOLANA_NETWORK=devnet -e DATABASE_URL=... -p 3000:3000 blockchain-indexer
+```
+
+### Kubernetes
+
+Set environment variables in the pod spec or Helm values:
+
+```yaml
+env:
+  - name: SOLANA_NETWORK
+    value: "devnet"
+  - name: DATABASE_URL
+    valueFrom:
+      secretKeyRef:
+        name: blockchain-indexer
+        key: database-url
+```
+
+`SOLANA_NETWORK` defaults to `mainnet` in the image, so production deployments only need to set
+it explicitly if targeting a different network.
