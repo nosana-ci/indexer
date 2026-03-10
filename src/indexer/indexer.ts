@@ -139,7 +139,7 @@ export class Indexer {
     // Check if all our queued jobs in this market are actually still queued on-chain
     // A delist instruction can remove the job from the on-chain queue
     if (queuedJobsFromDB && queuedJobsFromDB.length) {
-      let removeJobsFromDb: string[] = [];
+      let removeJobsFromDb: string[];
       if (marketAccount.queueType === MarketQueueType.NODE_QUEUE || !marketAccount.queue.length) {
         removeJobsFromDb = queuedJobsFromDB.map((j) => j.address);
       } else {
@@ -404,7 +404,10 @@ export class Indexer {
         await sleep(0.5);
         // remove logs from all opStates
         if (result.opStates) {
-          const opStates = result.opStates.map(({ logs, ...keepAttrs }: any) => keepAttrs);
+          const opStates = result.opStates.map(({ logs: _logs, ...keepAttrs }) => ({
+            ...keepAttrs,
+            logs: [],
+          }));
           result.opStates = opStates;
         }
 
@@ -414,9 +417,9 @@ export class Indexer {
         }
 
         console.log(`Retrieved job result for ${job.address} with status: ${result.status}`);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("couldnt process job results ", job.address);
-        console.error(error.message);
+        console.error(error instanceof Error ? error.message : String(error));
       }
     }
 

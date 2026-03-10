@@ -323,6 +323,7 @@ export default class JobsRepository {
     );
   }
 
+  /* eslint-disable @typescript-eslint/no-explicit-any -- Drizzle CTE types are complex inferred types */
   createStatsBucketedCte(baseCte: any, timeSeriesInterval: string, _groupByMarket: boolean) {
     return this.withAlias("jobs_bucketed").as(
       this.db
@@ -410,4 +411,5 @@ export default class JobsRepository {
       .from(baseCte)
       .execute();
   }
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 }

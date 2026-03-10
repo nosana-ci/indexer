@@ -200,11 +200,13 @@ export class JobsService {
 
       const baseCTE = this.jobsRepo.createStatsBaseCte(conditions);
 
+      /* eslint-disable @typescript-eslint/no-explicit-any -- Drizzle CTE column references */
       const effectivePrice = (table: any) =>
         sql<number>`sum((${table.effectiveRuntimeSeconds}) * (${table.price}/1e6) * ${multiplier})::numeric(15, 6)`;
       const effectiveUsdReward = (table: any) =>
         sql<number>`sum((${table.effectiveRuntimeSeconds}) * (${table.usdRewardPerHour}) / 3600.0)::numeric(15, 6)`;
       const sumDuration = (table: any) => sql<number>`sum(${table.effectiveRuntimeSeconds})`;
+      /* eslint-enable @typescript-eslint/no-explicit-any */
 
       const groupByProject = query.groupBy === GroupBy.Project;
       const groupByMarket = query.groupBy === GroupBy.Market;
@@ -216,6 +218,7 @@ export class JobsService {
           groupByMarket,
         );
 
+        /* eslint-disable @typescript-eslint/no-explicit-any -- Drizzle CTE select/groupBy fields have complex inferred types */
         const select: Record<string, any> = {
           time: bucketedCTE.bucket,
           completed: count(),
@@ -224,6 +227,7 @@ export class JobsService {
           usdReward: effectiveUsdReward(bucketedCTE),
         };
         const groupByFields: any[] = [bucketedCTE.bucket];
+        /* eslint-enable @typescript-eslint/no-explicit-any */
 
         if (groupByMarket) {
           select.market = bucketedCTE.market;
@@ -329,30 +333,53 @@ export class JobsService {
     return stats;
   }
 
-  private nestTimeSeriesData(data: any[], groupByProject?: boolean, groupByMarket?: boolean) {
-    const nested: Record<string, any> = {};
+  private nestTimeSeriesData(
+    data: Array<Record<string, unknown>>,
+    groupByProject?: boolean,
+    groupByMarket?: boolean,
+  ) {
+    interface StatsEntry {
+      time: unknown;
+      completed: number;
+      duration: number;
+      price: number;
+      usdReward: number;
+      projects?: Array<StatsGroupEntry>;
+      markets?: Array<Record<string, unknown>>;
+    }
+    interface StatsGroupEntry {
+      project: unknown;
+      completed: number;
+      duration: number;
+      price: number;
+      usdReward: number;
+    }
+    const nested: Record<string, StatsEntry> = {};
 
     for (const row of data) {
       const { time, project, market, completed, duration, price, usdReward } = row;
-      if (!nested[time]) {
-        nested[time] = {
+      const timeKey = String(time);
+      if (!nested[timeKey]) {
+        nested[timeKey] = {
           time,
           completed: 0,
           duration: 0,
           price: 0,
           usdReward: 0,
-          ...(groupByProject ? { projects: [] as any[] } : {}),
-          ...(groupByMarket && !groupByProject ? { markets: [] as any[] } : {}),
+          ...(groupByProject ? { projects: [] as StatsGroupEntry[] } : {}),
+          ...(groupByMarket && !groupByProject
+            ? { markets: [] as Array<Record<string, unknown>> }
+            : {}),
         };
       }
 
-      nested[time].completed += Number(completed || 0);
-      nested[time].duration += Number(duration || 0);
-      nested[time].price += Number(price || 0);
-      nested[time].usdReward += Number(usdReward || 0);
+      nested[timeKey].completed += Number(completed || 0);
+      nested[timeKey].duration += Number(duration || 0);
+      nested[timeKey].price += Number(price || 0);
+      nested[timeKey].usdReward += Number(usdReward || 0);
 
       if (groupByProject && project) {
-        let projectGroup = nested[time].projects.find((p: any) => p.project === project);
+        let projectGroup = nested[timeKey].projects?.find((p) => p.project === project);
         if (!projectGroup) {
           projectGroup = {
             project,
@@ -361,14 +388,14 @@ export class JobsService {
             price: 0,
             usdReward: 0,
           };
-          nested[time].projects.push(projectGroup);
+          nested[timeKey].projects?.push(projectGroup);
         }
         projectGroup.completed += Number(completed || 0);
         projectGroup.duration += Number(duration || 0);
         projectGroup.price += Number(price || 0);
         projectGroup.usdReward += Number(usdReward || 0);
       } else if (groupByMarket && market) {
-        nested[time].markets.push({
+        nested[timeKey].markets?.push({
           market,
           name: null,
           completed,

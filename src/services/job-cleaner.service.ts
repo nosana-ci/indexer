@@ -77,8 +77,9 @@ export default class JobCleanerService {
             const signature = await this.nosanaClient.solana.buildSignAndSend(instructions);
             console.log(`Clean transaction #${batchIdx + 1} succeeded: ${signature}`);
             break;
-          } catch (e: any) {
-            if (attempt === MAX_RETRIES - 1 || e?.message?.includes("AccountNotInitialized")) {
+          } catch (e: unknown) {
+            const error = e instanceof Error ? e : new Error(String(e));
+            if (attempt === MAX_RETRIES - 1 || error.message?.includes("AccountNotInitialized")) {
               console.error(`Clean transaction #${batchIdx + 1} failed:`, e);
               break;
             }

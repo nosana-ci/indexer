@@ -329,7 +329,7 @@ export default class StatsService {
 
     const currentDate = new Date();
 
-    let currentMonthData: PeriodData | null = null;
+    let currentMonthData: PeriodData | null;
     if (groupBy === "day") {
       const currentMonthPrefix = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`;
       const monthData: PeriodData = {
@@ -383,7 +383,7 @@ export default class StatsService {
 
       const prevDate = new Date(currentDate);
       prevDate.setMonth(prevDate.getMonth() - 1);
-      let prevMonthData: PeriodData | null = null;
+      let prevMonthData: PeriodData | null;
       if (groupBy === "day") {
         const prevMonthPrefix = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
         const previousMonthData: PeriodData = {
