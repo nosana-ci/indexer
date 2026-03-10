@@ -1,7 +1,7 @@
-import { getDb } from '../db/client';
-import { appTasksHistory } from '../db/tables/app-tasks-history';
-import { eq } from 'drizzle-orm';
-import { populateEarningAndSpendingDB } from './populate-earnings-spending';
+import { getDb } from "../db/client";
+import { appTasksHistory } from "../db/tables/app-tasks-history";
+import { eq } from "drizzle-orm";
+import { populateEarningAndSpendingDB } from "./populate-earnings-spending";
 
 /**
  * Interface for defining one-time startup tasks.
@@ -28,11 +28,9 @@ export const startupTasksRegistry: StartupTask[] = [
  * Runs all registered startup tasks that haven't been completed yet.
  * Each task is tracked in the app_tasks_history table so it only runs once.
  */
-export async function runStartupTasks(
-  tasks: StartupTask[] = startupTasksRegistry
-): Promise<void> {
+export async function runStartupTasks(tasks: StartupTask[] = startupTasksRegistry): Promise<void> {
   const db = getDb();
-  console.log('Checking for pending one-time startup tasks...');
+  console.log("Checking for pending one-time startup tasks...");
 
   for (const task of tasks) {
     try {
@@ -49,13 +47,10 @@ export async function runStartupTasks(
       await db.insert(appTasksHistory).values({ taskId: task.id });
       console.log(`Completed one-time task: ${task.description} (${task.id})`);
     } catch (error) {
-      console.error(
-        `Error processing one-time task ${task.id} (${task.description}):`,
-        error
-      );
+      console.error(`Error processing one-time task ${task.id} (${task.description}):`, error);
       console.warn(`Skipping task ${task.id} due to error.`);
     }
   }
 
-  console.log('Finished checking one-time startup tasks.');
+  console.log("Finished checking one-time startup tasks.");
 }

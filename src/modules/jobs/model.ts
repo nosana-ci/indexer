@@ -1,4 +1,4 @@
-import { t } from 'elysia';
+import { t } from "elysia";
 
 export const getByAddressParams = t.Object({
   address: t.String(),
@@ -37,10 +37,10 @@ export type JobResponse = typeof jobResponse.static;
 export type JobBatchItemResponse = typeof jobBatchItemResponse.static;
 
 export enum JobState {
-  QUEUED = 'QUEUED',
-  RUNNING = 'RUNNING',
-  COMPLETED = 'COMPLETED',
-  STOPPED = 'STOPPED',
+  QUEUED = "QUEUED",
+  RUNNING = "RUNNING",
+  COMPLETED = "COMPLETED",
+  STOPPED = "STOPPED",
 }
 
 export const jobStateMappingReverse: Record<string, number> = {
@@ -51,14 +51,14 @@ export const jobStateMappingReverse: Record<string, number> = {
 };
 
 export enum GroupBy {
-  Project = 'project',
-  Market = 'market',
+  Project = "project",
+  Market = "market",
 }
 
 export enum TimeSeriesInterval {
-  Day = 'day',
-  Week = 'week',
-  Month = 'month',
+  Day = "day",
+  Week = "week",
+  Month = "month",
 }
 
 export type BaseAggregates = {
@@ -123,11 +123,7 @@ export type StatsTimeSeries = {
   series: StatsSeriesBucket[];
 };
 
-export type StatsType =
-  | StatsTotals
-  | StatsByProject
-  | StatsByMarket
-  | StatsTimeSeries;
+export type StatsType = StatsTotals | StatsByProject | StatsByMarket | StatsTimeSeries;
 
 export const GetJobsQuery = t.Object({
   limit: t.Optional(t.Numeric({ minimum: 1, maximum: 50 })),
@@ -138,7 +134,7 @@ export const GetJobsQuery = t.Object({
       t.Literal(JobState.RUNNING),
       t.Literal(JobState.COMPLETED),
       t.Literal(JobState.STOPPED),
-    ])
+    ]),
   ),
   market: t.Optional(t.String()),
   node: t.Optional(t.String()),
@@ -146,15 +142,13 @@ export const GetJobsQuery = t.Object({
   payer: t.Optional(t.String()),
   timeStart: t.Optional(t.Numeric({ minimum: 0 })),
   timeEnd: t.Optional(t.Numeric({ minimum: 0 })),
-  groupBy: t.Optional(
-    t.Union([t.Literal(GroupBy.Project), t.Literal(GroupBy.Market)])
-  ),
+  groupBy: t.Optional(t.Union([t.Literal(GroupBy.Project), t.Literal(GroupBy.Market)])),
   timeSeriesInterval: t.Optional(
     t.Union([
       t.Literal(TimeSeriesInterval.Day),
       t.Literal(TimeSeriesInterval.Week),
       t.Literal(TimeSeriesInterval.Month),
-    ])
+    ]),
   ),
   useMultiplier: t.Optional(t.Union([t.Boolean(), t.String()])),
   skipCache: t.Optional(t.Union([t.Boolean(), t.String()])),

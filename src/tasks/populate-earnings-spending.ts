@@ -1,5 +1,5 @@
-import { getDb } from '../db/client';
-import { sql } from 'drizzle-orm';
+import { getDb } from "../db/client";
+import { sql } from "drizzle-orm";
 
 /**
  * One-time task to populate daily_earnings and daily_job_spend aggregation
@@ -8,7 +8,7 @@ import { sql } from 'drizzle-orm';
  */
 export async function populateEarningAndSpendingDB() {
   const db = getDb();
-  console.log('Starting daily earnings and job spend population task...');
+  console.log("Starting daily earnings and job spend population task...");
 
   await db.transaction(async (tx) => {
     await tx.execute(sql`TRUNCATE TABLE daily_job_spend, daily_earnings`);
@@ -55,5 +55,5 @@ export async function populateEarningAndSpendingDB() {
     `);
   });
 
-  console.log('Daily earnings and job spend population task completed successfully');
+  console.log("Daily earnings and job spend population task completed successfully");
 }

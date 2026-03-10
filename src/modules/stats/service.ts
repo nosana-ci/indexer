@@ -1,6 +1,6 @@
-import type { NosanaClient } from '@nosana/kit';
-import { sql } from 'drizzle-orm';
-import StatsRepository from '../../repositories/stats.repository';
+import type { NosanaClient } from "@nosana/kit";
+import { sql } from "drizzle-orm";
+import StatsRepository from "../../repositories/stats.repository";
 
 type PeriodData = {
   total_usd: number;
@@ -29,17 +29,12 @@ export default class StatsService {
     const latestStats = statsResult[0];
     return {
       ...latestStats,
-      date: latestStats?.date?.toISOString() ?? '',
+      date: latestStats?.date?.toISOString() ?? "",
       usdValueStaked:
-        latestStats.usdValueStaked !== null
-          ? String(latestStats.usdValueStaked)
-          : null,
-      nosStaked:
-        latestStats.nosStaked !== null ? String(latestStats.nosStaked) : null,
+        latestStats.usdValueStaked !== null ? String(latestStats.usdValueStaked) : null,
+      nosStaked: latestStats.nosStaked !== null ? String(latestStats.nosStaked) : null,
       totalXNosStaked:
-        latestStats.totalXNosStaked !== null
-          ? String(latestStats.totalXNosStaked)
-          : null,
+        latestStats.totalXNosStaked !== null ? String(latestStats.totalXNosStaked) : null,
     };
   }
 
@@ -70,33 +65,21 @@ export default class StatsService {
           nosStats.price && stakeStats?.nosStaked
             ? Math.round(stakeStats.nosStaked * nosStats.price)
             : null,
-        nosStaked: stakeStats?.nosStaked
-          ? Math.round(stakeStats.nosStaked)
-          : null,
-        totalXNosStaked: stakeStats?.xNosStaked
-          ? Math.round(stakeStats.xNosStaked)
-          : null,
+        nosStaked: stakeStats?.nosStaked ? Math.round(stakeStats.nosStaked) : null,
+        totalXNosStaked: stakeStats?.xNosStaked ? Math.round(stakeStats.xNosStaked) : null,
         stakers: stakeStats ? Number(stakeStats.stakers) : null,
         price: nosStats.price ? Number(nosStats.price) : null,
         marketCap: nosStats.marketCap ? Number(nosStats.marketCap) : null,
-        dailyVolume: nosStats.dailyVolume
-          ? Number(nosStats.dailyVolume)
-          : null,
-        totalSupply: nosStats.totalSupply
-          ? Number(nosStats.totalSupply)
-          : null,
+        dailyVolume: nosStats.dailyVolume ? Number(nosStats.dailyVolume) : null,
+        totalSupply: nosStats.totalSupply ? Number(nosStats.totalSupply) : null,
         fullyDilutedMarketCap: nosStats.fullyDilutedMarketCap
           ? Number(nosStats.fullyDilutedMarketCap)
           : null,
-        circulatingSupply: nosStats.circulatingSupply
-          ? Number(nosStats.circulatingSupply)
-          : null,
-        dailyPriceChange: nosStats.dailyPriceChange
-          ? Number(nosStats.dailyPriceChange)
-          : null,
+        circulatingSupply: nosStats.circulatingSupply ? Number(nosStats.circulatingSupply) : null,
+        dailyPriceChange: nosStats.dailyPriceChange ? Number(nosStats.dailyPriceChange) : null,
       });
     } catch (error) {
-      console.log('Failed to refresh main stats:', error);
+      console.log("Failed to refresh main stats:", error);
     }
   }
 
@@ -136,14 +119,9 @@ export default class StatsService {
           try {
             const percentagePassed = (currentTime - timeUnstakeNum) / durationNum;
             const percentageLocked = 1 - percentagePassed;
-            lockedAmount = BigInt(
-              Math.floor(Number(account.amount) * percentageLocked)
-            );
+            lockedAmount = BigInt(Math.floor(Number(account.amount) * percentageLocked));
           } catch (error) {
-            console.error(
-              `Failed to calculate locked amount for stake account:`,
-              error
-            );
+            console.error(`Failed to calculate locked amount for stake account:`, error);
           }
         }
 
@@ -156,7 +134,7 @@ export default class StatsService {
         xNosStaked: Number(totalXNos) / 1e6,
       };
     } catch (error) {
-      console.error('couldnt fetch stake stats', error);
+      console.error("couldnt fetch stake stats", error);
       return {
         stakers: null,
         nosStaked: null,
@@ -174,9 +152,7 @@ export default class StatsService {
       dailyPriceChange: number | undefined,
       dailyVolume: number | undefined;
     try {
-      const response = await fetch(
-        'https://api.coingecko.com/api/v3/coins/nosana'
-      );
+      const response = await fetch("https://api.coingecko.com/api/v3/coins/nosana");
       const data = await response.json();
       if (data?.market_data) {
         marketCap = data.market_data.market_cap?.usd;
@@ -188,7 +164,7 @@ export default class StatsService {
         price = data.market_data.current_price?.usd;
       }
     } catch (error) {
-      console.log('cant fetch nos stats', error);
+      console.log("cant fetch nos stats", error);
     }
     return {
       marketCap,
@@ -205,33 +181,31 @@ export default class StatsService {
     address: string;
     startDate: string;
     endDate?: string;
-    groupBy?: 'day' | 'month';
-    type: 'spending' | 'earnings';
+    groupBy?: "day" | "month";
+    type: "spending" | "earnings";
   }) {
-    const { address, startDate, endDate, groupBy = 'month', type } = params;
+    const { address, startDate, endDate, groupBy = "month", type } = params;
 
     if (!address) {
-      throw new Error(
-        `No ${type === 'spending' ? 'user' : 'node'} address provided.`
-      );
+      throw new Error(`No ${type === "spending" ? "user" : "node"} address provided.`);
     }
 
     const parsedStartDate = new Date(startDate);
-    const startDateStr = parsedStartDate.toISOString().split('T')[0];
+    const startDateStr = parsedStartDate.toISOString().split("T")[0];
     const parsedEndDate = endDate ? new Date(endDate) : new Date();
-    const endDateStr = parsedEndDate.toISOString().split('T')[0];
+    const endDateStr = parsedEndDate.toISOString().split("T")[0];
 
     const toText = (value: unknown): string =>
-      typeof value === 'string' ? value : String(value ?? '');
+      typeof value === "string" ? value : String(value ?? "");
     const toAmount = (value: unknown): number => {
       const parsed = parseFloat(toText(value));
       return Number.isFinite(parsed) ? parsed : 0;
     };
 
-    const formatStr = groupBy === 'day' ? 'YYYY-MM-DD' : 'YYYY-MM';
+    const formatStr = groupBy === "day" ? "YYYY-MM-DD" : "YYYY-MM";
 
     let query;
-    if (type === 'spending') {
+    if (type === "spending") {
       query = sql`
         SELECT
           to_char(daily_job_spend.date, ${formatStr}) as period_key,
@@ -268,7 +242,7 @@ export default class StatsService {
       const market = toText(row.market);
       if (!periodKey || !market) continue;
       const amount =
-        type === 'spending'
+        type === "spending"
           ? toAmount((row as { total_spent: unknown }).total_spent)
           : toAmount((row as { amount: unknown }).amount);
 
@@ -276,21 +250,19 @@ export default class StatsService {
         periods[periodKey] = {
           total_usd: 0,
           breakdown: [],
-          daily_breakdown: groupBy === 'day' ? {} : undefined,
+          daily_breakdown: groupBy === "day" ? {} : undefined,
         };
       }
 
       periods[periodKey].total_usd += amount;
       periods[periodKey].breakdown.push(
-        type === 'spending'
-          ? { market, totalSpent: amount }
-          : { market, totalEarnedUsd: amount }
+        type === "spending" ? { market, totalSpent: amount } : { market, totalEarnedUsd: amount },
       );
     }
 
-    if (groupBy === 'month') {
+    if (groupBy === "month") {
       let dailyQuery;
-      if (type === 'spending') {
+      if (type === "spending") {
         dailyQuery = sql`
         SELECT
           to_char(daily_job_spend.date, 'YYYY-MM-DD') as day_key,
@@ -326,7 +298,7 @@ export default class StatsService {
         if (!dayKey || !market) continue;
         const monthKey = dayKey.substring(0, 7);
         const amount =
-          type === 'spending'
+          type === "spending"
             ? toAmount((row as { total_spent: unknown }).total_spent)
             : toAmount((row as { amount: unknown }).amount);
 
@@ -351,16 +323,15 @@ export default class StatsService {
     }
 
     let forecast: number | null = null;
-    let comparison: { prevMonthTotal: number; pctChange: number | null } | null =
-      null;
+    let comparison: { prevMonthTotal: number; pctChange: number | null } | null = null;
     let sameDayComparison: Record<string, number> | null = null;
     let currentMonthUsd: Record<string, number> | null = null;
 
     const currentDate = new Date();
 
     let currentMonthData: PeriodData | null = null;
-    if (groupBy === 'day') {
-      const currentMonthPrefix = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+    if (groupBy === "day") {
+      const currentMonthPrefix = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`;
       const monthData: PeriodData = {
         total_usd: 0,
         breakdown: [],
@@ -372,18 +343,14 @@ export default class StatsService {
         if (periodKey.startsWith(currentMonthPrefix)) {
           monthData.total_usd += periods[periodKey].total_usd;
           periods[periodKey].breakdown.forEach((marketData) => {
-            const existingMarket = monthData.breakdown.find(
-              (b) => b.market === marketData.market
-            );
+            const existingMarket = monthData.breakdown.find((b) => b.market === marketData.market);
             if (existingMarket) {
-              if (type === 'spending') {
+              if (type === "spending") {
                 existingMarket.totalSpent =
-                  (existingMarket.totalSpent || 0) +
-                  (marketData.totalSpent || 0);
+                  (existingMarket.totalSpent || 0) + (marketData.totalSpent || 0);
               } else {
                 existingMarket.totalEarnedUsd =
-                  (existingMarket.totalEarnedUsd || 0) +
-                  (marketData.totalEarnedUsd || 0);
+                  (existingMarket.totalEarnedUsd || 0) + (marketData.totalEarnedUsd || 0);
               }
             } else {
               monthData.breakdown.push({ ...marketData });
@@ -392,7 +359,7 @@ export default class StatsService {
         }
       });
     } else {
-      const currentMonthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+      const currentMonthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`;
       currentMonthData = periods[currentMonthKey] ?? null;
     }
 
@@ -401,7 +368,7 @@ export default class StatsService {
       const daysInMonth = new Date(
         currentDate.getFullYear(),
         currentDate.getMonth() + 1,
-        0
+        0,
       ).getDate();
 
       forecast =
@@ -410,15 +377,15 @@ export default class StatsService {
           : currentMonthData.total_usd;
 
       currentMonthUsd = {
-        [type === 'spending' ? 'currentMonthSpent' : 'currentMonthEarned']:
+        [type === "spending" ? "currentMonthSpent" : "currentMonthEarned"]:
           currentMonthData.total_usd,
       };
 
       const prevDate = new Date(currentDate);
       prevDate.setMonth(prevDate.getMonth() - 1);
       let prevMonthData: PeriodData | null = null;
-      if (groupBy === 'day') {
-        const prevMonthPrefix = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+      if (groupBy === "day") {
+        const prevMonthPrefix = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
         const previousMonthData: PeriodData = {
           total_usd: 0,
           breakdown: [],
@@ -438,15 +405,13 @@ export default class StatsService {
 
             periods[periodKey].breakdown.forEach((marketData) => {
               const amount =
-                type === 'spending'
-                  ? (marketData.totalSpent || 0)
-                  : (marketData.totalEarnedUsd || 0);
+                type === "spending" ? marketData.totalSpent || 0 : marketData.totalEarnedUsd || 0;
               dailyBreakdown[periodKey][marketData.market] = amount;
             });
           }
         });
       } else {
-        const prevMonthKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+        const prevMonthKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
         prevMonthData = periods[prevMonthKey] ?? null;
       }
 
@@ -454,8 +419,7 @@ export default class StatsService {
         const prevTotal = prevMonthData.total_usd;
         comparison = {
           prevMonthTotal: prevTotal,
-          pctChange:
-            prevTotal > 0 ? ((forecast! - prevTotal) / prevTotal) * 100 : null,
+          pctChange: prevTotal > 0 ? ((forecast! - prevTotal) / prevTotal) * 100 : null,
         };
 
         if (
@@ -465,21 +429,19 @@ export default class StatsService {
           const maxDaysInPrevMonth = new Date(
             prevDate.getFullYear(),
             prevDate.getMonth() + 1,
-            0
+            0,
           ).getDate();
           const sameDayInPrevMonth = Math.min(dayOfMonth, maxDaysInPrevMonth);
           let amountUpToSameDayLastMonth = 0;
 
-          Object.entries(prevMonthData.daily_breakdown).forEach(
-            ([dayKey, marketValues]) => {
-              const dayOfMonthFromKey = parseInt(dayKey.slice(-2), 10);
-              if (dayOfMonthFromKey <= sameDayInPrevMonth) {
-                Object.values(marketValues).forEach((amount) => {
-                  amountUpToSameDayLastMonth += amount;
-                });
-              }
+          Object.entries(prevMonthData.daily_breakdown).forEach(([dayKey, marketValues]) => {
+            const dayOfMonthFromKey = parseInt(dayKey.slice(-2), 10);
+            if (dayOfMonthFromKey <= sameDayInPrevMonth) {
+              Object.values(marketValues).forEach((amount) => {
+                amountUpToSameDayLastMonth += amount;
+              });
             }
-          );
+          });
 
           const pctChangeSoFar =
             amountUpToSameDayLastMonth > 0
@@ -488,10 +450,9 @@ export default class StatsService {
                 100
               : null;
           sameDayComparison = {
-            [type === 'spending'
-              ? 'sameDayLastMonthSpent'
-              : 'sameDayLastMonthEarned']: amountUpToSameDayLastMonth,
-            [type === 'spending' ? 'currentMonthSpent' : 'currentMonthEarned']:
+            [type === "spending" ? "sameDayLastMonthSpent" : "sameDayLastMonthEarned"]:
+              amountUpToSameDayLastMonth,
+            [type === "spending" ? "currentMonthSpent" : "currentMonthEarned"]:
               currentMonthData.total_usd,
             ...(pctChangeSoFar !== null && { pctChangeSoFar }),
           };
@@ -521,14 +482,14 @@ export default class StatsService {
     userAddress: string,
     startDate: string,
     endDate?: string,
-    groupBy: 'day' | 'month' = 'month'
+    groupBy: "day" | "month" = "month",
   ) {
     const result = await this.getHistoryData({
       address: userAddress,
       startDate,
       endDate,
       groupBy,
-      type: 'spending',
+      type: "spending",
     });
 
     return {
@@ -548,14 +509,14 @@ export default class StatsService {
     nodeAddress: string,
     startDate: string,
     endDate?: string,
-    groupBy: 'day' | 'month' = 'month'
+    groupBy: "day" | "month" = "month",
   ) {
     const result = await this.getHistoryData({
       address: nodeAddress,
       startDate,
       endDate,
       groupBy,
-      type: 'earnings',
+      type: "earnings",
     });
 
     const totalQuery = sql`

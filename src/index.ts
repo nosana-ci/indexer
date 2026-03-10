@@ -3,11 +3,7 @@ import { createApp } from "./app";
 import { runMigrations } from "./db/migrate";
 import { runStartupTasks } from "./tasks";
 import { Indexer } from "./indexer/indexer";
-import {
-  createNosanaClient,
-  type NosanaNetwork,
-  type PartialClientConfig,
-} from "@nosana/kit";
+import { createNosanaClient, type NosanaNetwork, type PartialClientConfig } from "@nosana/kit";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { cron } from "@elysiajs/cron";
 import { StatsService } from "./modules/stats";
@@ -30,7 +26,7 @@ if (process.env.SOLANA_RPC) {
 
 const nosanaClient = createNosanaClient(
   (process.env.SOLANA_NETWORK || "mainnet") as NosanaNetwork,
-  config
+  config,
 );
 
 const indexer = new Indexer(nosanaClient);
@@ -40,14 +36,10 @@ let jobCleanerService: JobCleanerService | null = null;
 
 if (process.env.CLEAN_ADMIN_PRIVATE_KEY) {
   try {
-    const keyBytes = new Uint8Array(
-      JSON.parse(process.env.CLEAN_ADMIN_PRIVATE_KEY)
-    );
+    const keyBytes = new Uint8Array(JSON.parse(process.env.CLEAN_ADMIN_PRIVATE_KEY));
     const adminSigner = await createKeyPairSignerFromBytes(keyBytes);
     jobCleanerService = new JobCleanerService(nosanaClient, adminSigner);
-    console.log(
-      `Job cleaner enabled with admin address: ${adminSigner.address}`
-    );
+    console.log(`Job cleaner enabled with admin address: ${adminSigner.address}`);
   } catch (error) {
     console.error("Failed to initialize job cleaner:", error);
   }
@@ -85,7 +77,7 @@ const app = createApp({ statsService })
           console.error("❌ Jobs GPA or Markets GPA failed:", error);
         }
       },
-    })
+    }),
   )
   .use(
     cron({
@@ -100,7 +92,7 @@ const app = createApp({ statsService })
           console.error("❌ Job Processing failed:", error);
         }
       },
-    })
+    }),
   )
   .use(
     cron({
@@ -115,7 +107,7 @@ const app = createApp({ statsService })
           console.error("❌ Refresh Stats failed:", error);
         }
       },
-    })
+    }),
   );
 
 if (jobCleanerService) {
@@ -133,15 +125,13 @@ if (jobCleanerService) {
           console.error("❌ Job Cleaner failed:", error);
         }
       },
-    })
+    }),
   );
 }
 
 app.listen(Number(process.env.PORT) || 3000);
 
-console.log(
-  `⛓️ Blockchain Indexer is running at ${app.server?.hostname}:${app.server?.port}`
-);
+console.log(`⛓️ Blockchain Indexer is running at ${app.server?.hostname}:${app.server?.port}`);
 
 try {
   console.log("🚀 Starting indexer WebSocket monitoring...");

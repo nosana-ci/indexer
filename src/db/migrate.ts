@@ -7,4 +7,3 @@ export async function runMigrations() {
     migrationsFolder: "./drizzle",
   });
 }
-

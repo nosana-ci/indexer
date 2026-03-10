@@ -9,18 +9,13 @@ import {
   type Run,
   type FlowState,
   type JobDefinition,
-} from '@nosana/kit';
-import type { InsertJob, SelectJob } from '../db/tables/jobs';
-import {
-  jobsAreEqual,
-  convertJobToInsertJob,
-  checkJobExists,
-  sleep,
-} from './utils';
-import { getNosPrice } from '../services/price.service';
-import JobsRepository from '../repositories/jobs.repository';
-import DailyEarningsRepository from '../repositories/daily-earnings.repository';
-import DailyJobSpendRepository from '../repositories/daily-job-spend.repository';
+} from "@nosana/kit";
+import type { InsertJob, SelectJob } from "../db/tables/jobs";
+import { jobsAreEqual, convertJobToInsertJob, checkJobExists, sleep } from "./utils";
+import { getNosPrice } from "../services/price.service";
+import JobsRepository from "../repositories/jobs.repository";
+import DailyEarningsRepository from "../repositories/daily-earnings.repository";
+import DailyJobSpendRepository from "../repositories/daily-job-spend.repository";
 
 export class Indexer {
   private nosanaClient: NosanaClient;
@@ -36,7 +31,7 @@ export class Indexer {
     nosanaClient: NosanaClient,
     jobsRepo?: JobsRepository,
     dailyEarningsRepo?: DailyEarningsRepository,
-    dailyJobSpendRepo?: DailyJobSpendRepository
+    dailyJobSpendRepo?: DailyJobSpendRepository,
   ) {
     this.nosanaClient = nosanaClient;
     this.jobsRepo = jobsRepo || new JobsRepository();
@@ -86,28 +81,24 @@ export class Indexer {
         this.updateActivity();
 
         if (event.type === MonitorEventType.JOB) {
-          console.log('JobAccount change:', event.data.address);
+          console.log("JobAccount change:", event.data.address);
           const updatedJob = await this.handleJobUpdate(event.data);
           if (updatedJob) {
-            console.log(
-              `(WebSocket) Updated/Inserted job account data for ${updatedJob.address}`
-            );
+            console.log(`(WebSocket) Updated/Inserted job account data for ${updatedJob.address}`);
           }
         } else if (event.type === MonitorEventType.MARKET) {
-          console.log('MarketAccount change:', event.data.address);
+          console.log("MarketAccount change:", event.data.address);
           await this.handleMarketUpdate(event.data);
         } else if (event.type === MonitorEventType.RUN) {
-          console.log('RunAccount change:', event.data.address);
+          console.log("RunAccount change:", event.data.address);
           const updatedJob = await this.handleRunUpdate(event.data);
           if (updatedJob) {
-            console.log(
-              `(WebSocket) Updated/Inserted job account data for ${updatedJob.address}`
-            );
+            console.log(`(WebSocket) Updated/Inserted job account data for ${updatedJob.address}`);
           }
         }
       }
     })().catch((error) => {
-      console.error('Monitor event stream error:', error);
+      console.error("Monitor event stream error:", error);
     });
   }
 
@@ -124,12 +115,12 @@ export class Indexer {
     let jobFromRun = await this.nosanaClient.jobs.get(runAccount.job, false);
     if (!jobFromRun) {
       console.error(
-        `(WebSocket) Could not get job account data from run account ${runAccount.address}`
+        `(WebSocket) Could not get job account data from run account ${runAccount.address}`,
       );
       return null;
     }
     console.log(
-      `(WebSocket) Found job ${jobFromRun.address} belonging to run ${runAccount.address}`
+      `(WebSocket) Found job ${jobFromRun.address} belonging to run ${runAccount.address}`,
     );
     jobFromRun = {
       ...jobFromRun,
@@ -142,17 +133,14 @@ export class Indexer {
 
   async handleMarketUpdate(marketAccount: Market): Promise<void> {
     const queuedJobsFromDB = await this.jobsRepo.findQueuedByMarket(
-      marketAccount.address.toString()
+      marketAccount.address.toString(),
     );
 
     // Check if all our queued jobs in this market are actually still queued on-chain
     // A delist instruction can remove the job from the on-chain queue
     if (queuedJobsFromDB && queuedJobsFromDB.length) {
       let removeJobsFromDb: string[] = [];
-      if (
-        marketAccount.queueType === MarketQueueType.NODE_QUEUE ||
-        !marketAccount.queue.length
-      ) {
+      if (marketAccount.queueType === MarketQueueType.NODE_QUEUE || !marketAccount.queue.length) {
         removeJobsFromDb = queuedJobsFromDB.map((j) => j.address);
       } else {
         // Check which jobs are not in queue anymore
@@ -164,18 +152,15 @@ export class Indexer {
         // Double check if these jobs really don't exist on-chain anymore before deleting them
         for (let i = 0; i < removeJobsFromDb.length; i++) {
           try {
-            const exists = await checkJobExists(
-              this.nosanaClient,
-              removeJobsFromDb[i]
-            );
+            const exists = await checkJobExists(this.nosanaClient, removeJobsFromDb[i]);
             if (!exists) {
               console.log(
-                `Could not find queued job ${removeJobsFromDb[i]} on-chain, it was probably delisted, removing from db..`
+                `Could not find queued job ${removeJobsFromDb[i]} on-chain, it was probably delisted, removing from db..`,
               );
               await this.jobsRepo.delete(removeJobsFromDb[i]);
             }
           } catch (e: unknown) {
-            console.log('Could not check job account on-chain', e);
+            console.log("Could not check job account on-chain", e);
           }
         }
       }
@@ -183,9 +168,7 @@ export class Indexer {
   }
 
   private async handleJobUpdate(job: Job): Promise<SelectJob | null> {
-    const existingJobData = await this.jobsRepo.findByAddress(
-      job.address.toString()
-    );
+    const existingJobData = await this.jobsRepo.findByAddress(job.address.toString());
 
     if (!existingJobData || !jobsAreEqual(existingJobData, job)) {
       // Don't update if the new job state is smaller or the same
@@ -196,14 +179,14 @@ export class Indexer {
         existingJobData.ipfsResult === job.ipfsResult
       ) {
         console.log(
-          `Skipped update as new state ${job.state} is smaller or same as old state ${existingJobData.state} with no timeout or result update`
+          `Skipped update as new state ${job.state} is smaller or same as old state ${existingJobData.state} with no timeout or result update`,
         );
         return null;
       }
       // If we have existing job data and only the timeout is higher, do a partial update
       let newJob: SelectJob | null;
       if (existingJobData) {
-        const updateData: Partial<Job> & { address: Job['address'] } = job;
+        const updateData: Partial<Job> & { address: Job["address"] } = job;
         if (job.state < existingJobData.state) {
           // this scenario might happen for when we have an extend for a running job
           delete updateData.state;
@@ -221,10 +204,7 @@ export class Indexer {
             console.log(`Immediately processed job ${newJob.address}`);
           })
           .catch((error) => {
-            console.error(
-              `Failed to immediately process job ${newJob.address}:`,
-              error
-            );
+            console.error(`Failed to immediately process job ${newJob.address}:`, error);
           });
 
         if (
@@ -232,9 +212,7 @@ export class Indexer {
           (!existingJobData || existingJobData.state !== JobState.COMPLETED)
         ) {
           this.updateDailyTables(newJob).then(() => {
-            console.log(
-              `Updated daily tables for completed job ${newJob.address}`
-            );
+            console.log(`Updated daily tables for completed job ${newJob.address}`);
           });
         }
       }
@@ -247,15 +225,10 @@ export class Indexer {
     if (job.state === JobState.COMPLETED) {
       try {
         // Format UTC date as YYYY-MM-DD
-        const jobDate = new Date(job.timeEnd * 1000)
-          .toISOString()
-          .split('T')[0];
+        const jobDate = new Date(job.timeEnd * 1000).toISOString().split("T")[0];
 
         // Calculate NOS earnings for the node
-        const durationSeconds = Math.min(
-          job.timeEnd - job.timeStart,
-          job.timeout as number
-        );
+        const durationSeconds = Math.min(job.timeEnd - job.timeStart, job.timeout as number);
 
         // Calculate USD earnings for the node
         const durationHours = durationSeconds / 3600;
@@ -277,10 +250,7 @@ export class Indexer {
           totalSpent: totalUsdEarned,
         });
       } catch (error) {
-        console.error(
-          `Error updating daily tables for job ${job.address}:`,
-          error
-        );
+        console.error(`Error updating daily tables for job ${job.address}:`, error);
       }
     }
   }
@@ -295,16 +265,14 @@ export class Indexer {
         if (updatedJob) {
           inserted++;
           console.log(
-            `(JOBS GPA ${index}/${accounts.length}) Updated/Inserted account data for ${updatedJob.address}`
+            `(JOBS GPA ${index}/${accounts.length}) Updated/Inserted account data for ${updatedJob.address}`,
           );
         }
       }
 
-      console.log(
-        `(JOBS GPA) Updated/Inserted ${inserted} out of ${accounts.length} jobs`
-      );
+      console.log(`(JOBS GPA) Updated/Inserted ${inserted} out of ${accounts.length} jobs`);
     } catch (e) {
-      console.error('Error in jobsGPA:', e);
+      console.error("Error in jobsGPA:", e);
     }
   }
 
@@ -315,27 +283,26 @@ export class Indexer {
 
       for (const [index, market] of markets.entries()) {
         console.log(
-          `(MARKETS GPA ${index + 1}/${markets.length}) Processing market ${market.address}`
+          `(MARKETS GPA ${index + 1}/${markets.length}) Processing market ${market.address}`,
         );
         await this.handleMarketUpdate(market);
       }
 
       console.log(`(MARKETS GPA) Processed ${markets.length} markets`);
     } catch (e) {
-      console.error('Error in marketsGPA:', e);
+      console.error("Error in marketsGPA:", e);
     }
   }
 
   async processJobs() {
     try {
-      const jobsToProcess: SelectJob[] =
-        await this.jobsRepo.findJobsToProcess({
-          limit: 500,
-          minTimeEnd: 1727690400, // TG3 cutoff date
-        });
+      const jobsToProcess: SelectJob[] = await this.jobsRepo.findJobsToProcess({
+        limit: 500,
+        minTimeEnd: 1727690400, // TG3 cutoff date
+      });
 
       if (!jobsToProcess.length) {
-        console.log('(PROCESS JOBS) No jobs to process');
+        console.log("(PROCESS JOBS) No jobs to process");
         return;
       }
 
@@ -343,29 +310,22 @@ export class Indexer {
 
       for (const [index, job] of jobsToProcess.entries()) {
         console.log(
-          `(PROCESS JOBS ${index + 1}/${jobsToProcess.length}) Processing job ${job.address}`
+          `(PROCESS JOBS ${index + 1}/${jobsToProcess.length}) Processing job ${job.address}`,
         );
 
         try {
           const processed = await this.processJob(job);
           if (processed) {
-            console.log(
-              `(PROCESS JOBS) Successfully processed job ${job.address}`
-            );
+            console.log(`(PROCESS JOBS) Successfully processed job ${job.address}`);
           }
         } catch (error) {
-          console.error(
-            `(PROCESS JOBS) Failed to process job ${job.address}:`,
-            error
-          );
+          console.error(`(PROCESS JOBS) Failed to process job ${job.address}:`, error);
         }
       }
 
-      console.log(
-        `(PROCESS JOBS) Completed processing ${jobsToProcess.length} jobs`
-      );
+      console.log(`(PROCESS JOBS) Completed processing ${jobsToProcess.length} jobs`);
     } catch (e) {
-      console.error('Error in processJobs:', e);
+      console.error("Error in processJobs:", e);
     }
   }
 
@@ -386,9 +346,7 @@ export class Indexer {
           console.log(`no transaction found for job ${job.address}`);
         }
       } catch (error) {
-        console.log(
-          `cant retrieve list transaction for job ${job.address}, ${error}`
-        );
+        console.log(`cant retrieve list transaction for job ${job.address}, ${error}`);
       }
     }
     const listedAt = job.listedAt || updateData.listedAt;
@@ -405,44 +363,30 @@ export class Indexer {
           const usdRewardPerHour = (job.price / 1e6) * nosPrice * 3600; // Divide by 1e6 to convert from lamports to NOS
           updateData.usdRewardPerHour = usdRewardPerHour;
           this.updateDailyTables(job).then(() => {
-            console.log(
-              `Updated daily tables for completed job ${job.address}`
-            );
+            console.log(`Updated daily tables for completed job ${job.address}`);
           });
         } else {
-          console.log(
-            `Could not get NOS price for job ${job.address} at listedAt ${listedAt}`
-          );
+          console.log(`Could not get NOS price for job ${job.address} at listedAt ${listedAt}`);
         }
       } catch (error) {
-        console.error(
-          `Error calculating usdRewardPerHour for job ${job.address}:`,
-          error
-        );
+        console.error(`Error calculating usdRewardPerHour for job ${job.address}:`, error);
       }
     }
 
     // Handle job definition retrieval
     if (!job.jobDefinition && job.ipfsJob) {
       try {
-        const jobDefinition: JobDefinition = await this.nosanaClient.ipfs.retrieve(
-          job.ipfsJob
-        );
+        const jobDefinition: JobDefinition = await this.nosanaClient.ipfs.retrieve(job.ipfsJob);
         // to prevent pinita rate limits
         await sleep(0.5);
-        const newJobType =
-          jobDefinition?.meta?.trigger ?? null;
+        const newJobType = jobDefinition?.meta?.trigger ?? null;
 
         updateData.jobDefinition = JSON.stringify(jobDefinition);
         updateData.type = newJobType;
 
-        console.log(
-          `Retrieved job definition for ${job.address} with type: ${newJobType}`
-        );
+        console.log(`Retrieved job definition for ${job.address} with type: ${newJobType}`);
       } catch (error) {
-        console.log(
-          `cant retrieve job definition of job ${job.address}, ${error}`
-        );
+        console.log(`cant retrieve job definition of job ${job.address}, ${error}`);
       }
     }
 
@@ -460,9 +404,7 @@ export class Indexer {
         await sleep(0.5);
         // remove logs from all opStates
         if (result.opStates) {
-          const opStates = result.opStates.map(
-            ({ logs, ...keepAttrs }: any) => keepAttrs
-          );
+          const opStates = result.opStates.map(({ logs, ...keepAttrs }: any) => keepAttrs);
           result.opStates = opStates;
         }
 
@@ -471,11 +413,9 @@ export class Indexer {
           updateData.jobStatus = result.status;
         }
 
-        console.log(
-          `Retrieved job result for ${job.address} with status: ${result.status}`
-        );
+        console.log(`Retrieved job result for ${job.address} with status: ${result.status}`);
       } catch (error: any) {
-        console.error('couldnt process job results ', job.address);
+        console.error("couldnt process job results ", job.address);
         console.error(error.message);
       }
     }
@@ -485,10 +425,7 @@ export class Indexer {
       try {
         await this.jobsRepo.simpleUpdate(job.address, updateData);
 
-        console.log(
-          `Updated job ${job.address} with:`,
-          Object.keys(updateData).join(', ')
-        );
+        console.log(`Updated job ${job.address} with:`, Object.keys(updateData).join(", "));
         return true;
       } catch (error) {
         console.error(`Failed to update job ${job.address}:`, error);
@@ -502,9 +439,7 @@ export class Indexer {
     return await this.jobsRepo.upsert(jobValues);
   }
 
-  async updateJob(
-    job: Partial<Job> & { address: Job['address'] }
-  ): Promise<SelectJob | null> {
+  async updateJob(job: Partial<Job> & { address: Job["address"] }): Promise<SelectJob | null> {
     const jobValues = convertJobToInsertJob(job);
     return await this.jobsRepo.update(jobValues.address, jobValues);
   }

@@ -22,15 +22,10 @@ export const createApp = (options?: { statsService?: StatsService }) => {
             { name: "Stats", description: "Aggregated statistics endpoints" },
           ],
         },
-      })
+      }),
     )
     .onError(({ error, status }) => {
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "status" in error &&
-        "message" in error
-      ) {
+      if (typeof error === "object" && error !== null && "status" in error && "message" in error) {
         const { status: errStatus, message } = error as {
           status: number;
           message: string;

@@ -1,7 +1,7 @@
-import { getDb } from '../db/client';
-import { stats, type InsertStats } from '../db/tables/stats';
-import { desc } from 'drizzle-orm';
-import type { SQL } from 'drizzle-orm';
+import { getDb } from "../db/client";
+import { stats, type InsertStats } from "../db/tables/stats";
+import { desc } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 
 export default class StatsRepository {
   private get db() {
@@ -9,12 +9,7 @@ export default class StatsRepository {
   }
 
   async getLatestStats() {
-    return this.db
-      .select()
-      .from(stats)
-      .orderBy(desc(stats.date))
-      .limit(1)
-      .execute();
+    return this.db.select().from(stats).orderBy(desc(stats.date)).limit(1).execute();
   }
 
   async insertStats(data: InsertStats): Promise<void> {

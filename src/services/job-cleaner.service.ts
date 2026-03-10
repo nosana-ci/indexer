@@ -1,6 +1,6 @@
-import { type NosanaClient, JobsClient } from '@nosana/kit';
-import type { KeyPairSigner, Address, Instruction } from '@solana/kit';
-import JobsRepository from '../repositories/jobs.repository';
+import { type NosanaClient, JobsClient } from "@nosana/kit";
+import type { KeyPairSigner, Address, Instruction } from "@solana/kit";
+import JobsRepository from "../repositories/jobs.repository";
 
 const BATCH_SIZE = 15;
 const MAX_JOBS_FROM_CHAIN = 250;
@@ -15,14 +15,14 @@ export default class JobCleanerService {
 
   constructor(
     private readonly nosanaClient: NosanaClient,
-    private readonly adminSigner: KeyPairSigner
+    private readonly adminSigner: KeyPairSigner,
   ) {
     this.nosanaClient.wallet = adminSigner;
   }
 
   async cleanJobs(): Promise<void> {
     try {
-      console.log('Retrieving completed jobs from blockchain...');
+      console.log("Retrieving completed jobs from blockchain...");
 
       let blockchainJobs = await this.nosanaClient.jobs.all({ state: 2 });
       console.log(`Found ${blockchainJobs.length} completed on-chain jobs`);
@@ -34,11 +34,11 @@ export default class JobCleanerService {
         blockchainJobs.map((j) => j.address),
         Math.round((now - COMPLETED_WITH_RESULT_AGE_MS) / 1000),
         Math.round((now - COMPLETED_AGE_MS) / 1000),
-        MAX_JOBS_TO_CLEAN
+        MAX_JOBS_TO_CLEAN,
       );
 
       if (dbJobs.length === 0) {
-        console.log('No jobs to clean');
+        console.log("No jobs to clean");
         return;
       }
 
@@ -65,10 +65,7 @@ export default class JobCleanerService {
             });
             instructions.push(ix);
           } catch (e) {
-            console.error(
-              `Failed to create clean instruction for job ${job.address}:`,
-              e
-            );
+            console.error(`Failed to create clean instruction for job ${job.address}:`, e);
           }
         }
 
@@ -77,31 +74,22 @@ export default class JobCleanerService {
         for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
           try {
             console.log(`Sending clean transaction #${batchIdx + 1}...`);
-            const signature =
-              await this.nosanaClient.solana.buildSignAndSend(instructions);
+            const signature = await this.nosanaClient.solana.buildSignAndSend(instructions);
             console.log(`Clean transaction #${batchIdx + 1} succeeded: ${signature}`);
             break;
           } catch (e: any) {
-            if (
-              attempt === MAX_RETRIES - 1 ||
-              e?.message?.includes('AccountNotInitialized')
-            ) {
-              console.error(
-                `Clean transaction #${batchIdx + 1} failed:`,
-                e
-              );
+            if (attempt === MAX_RETRIES - 1 || e?.message?.includes("AccountNotInitialized")) {
+              console.error(`Clean transaction #${batchIdx + 1} failed:`, e);
               break;
             }
-            console.log(
-              `Clean transaction #${batchIdx + 1} failed, retrying...`
-            );
+            console.log(`Clean transaction #${batchIdx + 1} failed, retrying...`);
           }
         }
       }
 
-      console.log('Done cleaning jobs');
+      console.log("Done cleaning jobs");
     } catch (error) {
-      console.error('Error cleaning jobs:', error);
+      console.error("Error cleaning jobs:", error);
     }
   }
 

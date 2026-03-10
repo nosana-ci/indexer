@@ -18,7 +18,7 @@ const rateLimitError = new Response(
   {
     status: 429,
     headers: { "Content-Type": "application/json" },
-  }
+  },
 );
 
 export const jobsRateLimit = () =>

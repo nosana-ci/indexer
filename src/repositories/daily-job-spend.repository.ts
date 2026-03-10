@@ -1,5 +1,5 @@
-import { getDb } from '../db/client';
-import { sql } from 'drizzle-orm';
+import { getDb } from "../db/client";
+import { sql } from "drizzle-orm";
 
 export default class DailyJobSpendRepository {
   private get db() {

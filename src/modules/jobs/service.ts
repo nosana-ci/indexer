@@ -1,16 +1,8 @@
-import dayjs from 'dayjs';
-import { NotFoundError } from 'elysia';
-import {
-  eq,
-  gt,
-  gte,
-  lt,
-  lte,
-  count,
-  sql,
-} from 'drizzle-orm';
-import { jobs, type SelectJob } from '../../db/tables/jobs';
-import JobsRepository from '../../repositories/jobs.repository';
+import dayjs from "dayjs";
+import { NotFoundError } from "elysia";
+import { eq, gt, gte, lt, lte, count, sql } from "drizzle-orm";
+import { jobs, type SelectJob } from "../../db/tables/jobs";
+import JobsRepository from "../../repositories/jobs.repository";
 import {
   GroupBy,
   JobState,
@@ -21,8 +13,8 @@ import {
   type StatsByMarket,
   type StatsTimeSeries,
   jobStateMappingReverse,
-} from './model';
-import type { JobResponse, JobBatchItemResponse } from './model';
+} from "./model";
+import type { JobResponse, JobBatchItemResponse } from "./model";
 
 export class JobsService {
   private statsCache?: StatsType;
@@ -36,7 +28,7 @@ export class JobsService {
     const job = await this.jobsRepo.findByAddress(address);
 
     if (!job) {
-      throw new NotFoundError('Job not found');
+      throw new NotFoundError("Job not found");
     }
 
     return this.mapToResponse(job);
@@ -45,9 +37,7 @@ export class JobsService {
   async getJobs(query: typeof GetJobsQuery.static) {
     const maxLimit = 50;
     const effectiveLimit = Math.min(query.limit ?? 10, maxLimit);
-    const state = query.state
-      ? jobStateMappingReverse[query.state]
-      : undefined;
+    const state = query.state ? jobStateMappingReverse[query.state] : undefined;
 
     const [result, totalJobs] = await Promise.all([
       this.jobsRepo.findMany({
@@ -74,10 +64,7 @@ export class JobsService {
     };
   }
 
-  async getJobsByAddresses(
-    addresses: string[],
-    limit: number
-  ): Promise<JobBatchItemResponse[]> {
+  async getJobsByAddresses(addresses: string[], limit: number): Promise<JobBatchItemResponse[]> {
     const maxLimit = 100;
     const effectiveLimit = Math.min(limit, maxLimit);
     return this.jobsRepo.findByAddresses(addresses, effectiveLimit);
@@ -86,20 +73,13 @@ export class JobsService {
   async getRunningJobs() {
     const runningJobs = await this.jobsRepo.countRunningByMarket();
 
-    return Object.fromEntries(
-      runningJobs.map((k) => [k.market, { running: k.running }])
-    );
+    return Object.fromEntries(runningJobs.map((k) => [k.market, { running: k.running }]));
   }
 
   /**
    * Returns total job count and counts per state, with optional filters (market, node, project, payer).
    */
-  async getJobsCount(query: {
-    market?: string;
-    node?: string;
-    project?: string;
-    payer?: string;
-  }) {
+  async getJobsCount(query: { market?: string; node?: string; project?: string; payer?: string }) {
     const rows = await this.jobsRepo.countByState({
       market: query.market,
       node: query.node,
@@ -108,10 +88,10 @@ export class JobsService {
     });
 
     const stateNames: Record<number, keyof typeof JobState> = {
-      0: 'QUEUED',
-      1: 'RUNNING',
-      2: 'COMPLETED',
-      3: 'STOPPED',
+      0: "QUEUED",
+      1: "RUNNING",
+      2: "COMPLETED",
+      3: "STOPPED",
     };
 
     const byState = {
@@ -137,11 +117,8 @@ export class JobsService {
    * Returns the node addresses of jobs in a "RUNNING" state for a given market.
    */
   async getRunningNodesForMarket(market: string): Promise<string[]> {
-    const runningState = jobStateMappingReverse['RUNNING'];
-    const rows = await this.jobsRepo.getRunningNodesForMarket(
-      market,
-      runningState
-    );
+    const runningState = jobStateMappingReverse["RUNNING"];
+    const rows = await this.jobsRepo.getRunningNodesForMarket(market, runningState);
     return rows.map((row) => row.node);
   }
 
@@ -151,11 +128,7 @@ export class JobsService {
    */
   async getLongRunningJobs(market?: string, payer?: string) {
     const currentTimestamp = Math.floor(Date.now() / 1000);
-    const result = await this.jobsRepo.findLongRunningJobs(
-      currentTimestamp,
-      market,
-      payer
-    );
+    const result = await this.jobsRepo.findLongRunningJobs(currentTimestamp, market, payer);
 
     if (market) {
       return {
@@ -176,10 +149,7 @@ export class JobsService {
         });
         return acc;
       },
-      {} as Record<
-        string,
-        Array<{ address: string; timeStart: number; timeout: number }>
-      >
+      {} as Record<string, Array<{ address: string; timeStart: number; timeout: number }>>,
     );
   }
 
@@ -202,7 +172,7 @@ export class JobsService {
     if (!stats || now > stats.retrieved + 60) {
       const conditions = [];
 
-      conditions.push(eq(jobs.state, jobStateMappingReverse['COMPLETED']));
+      conditions.push(eq(jobs.state, jobStateMappingReverse["COMPLETED"]));
       conditions.push(gt(jobs.timeStart, 0));
       conditions.push(gt(jobs.timeEnd, 0));
       conditions.push(lt(jobs.price, 10000000));
@@ -234,8 +204,7 @@ export class JobsService {
         sql<number>`sum((${table.effectiveRuntimeSeconds}) * (${table.price}/1e6) * ${multiplier})::numeric(15, 6)`;
       const effectiveUsdReward = (table: any) =>
         sql<number>`sum((${table.effectiveRuntimeSeconds}) * (${table.usdRewardPerHour}) / 3600.0)::numeric(15, 6)`;
-      const sumDuration = (table: any) =>
-        sql<number>`sum(${table.effectiveRuntimeSeconds})`;
+      const sumDuration = (table: any) => sql<number>`sum(${table.effectiveRuntimeSeconds})`;
 
       const groupByProject = query.groupBy === GroupBy.Project;
       const groupByMarket = query.groupBy === GroupBy.Market;
@@ -244,7 +213,7 @@ export class JobsService {
         const bucketedCTE = this.jobsRepo.createStatsBucketedCte(
           baseCTE,
           query.timeSeriesInterval,
-          groupByMarket
+          groupByMarket,
         );
 
         const select: Record<string, any> = {
@@ -270,21 +239,14 @@ export class JobsService {
           baseCTE,
           bucketedCTE,
           select,
-          groupByFields
+          groupByFields,
         );
 
-        const nestedData = this.nestTimeSeriesData(
-          timeSeriesRows,
-          groupByProject,
-          groupByMarket
-        );
+        const nestedData = this.nestTimeSeriesData(timeSeriesRows, groupByProject, groupByMarket);
 
         stats = { retrieved: now, series: nestedData } as StatsTimeSeries;
       } else if (groupByMarket) {
-        const rows = await this.jobsRepo.getStatsByMarketRows(
-          baseCTE,
-          multiplier
-        );
+        const rows = await this.jobsRepo.getStatsByMarketRows(baseCTE, multiplier);
 
         const totals = rows.reduce(
           (acc, r) => {
@@ -294,7 +256,7 @@ export class JobsService {
             acc.usdReward += Number(r.usdReward || 0);
             return acc;
           },
-          { completed: 0, duration: 0, price: 0, usdReward: 0 }
+          { completed: 0, duration: 0, price: 0, usdReward: 0 },
         );
 
         stats = {
@@ -313,10 +275,7 @@ export class JobsService {
           })),
         } as StatsByMarket;
       } else if (groupByProject) {
-        const rows = await this.jobsRepo.getStatsByProjectRows(
-          baseCTE,
-          multiplier
-        );
+        const rows = await this.jobsRepo.getStatsByProjectRows(baseCTE, multiplier);
 
         const totals = rows.reduce(
           (acc, r) => {
@@ -326,7 +285,7 @@ export class JobsService {
             acc.usdReward += Number(r.usdReward || 0);
             return acc;
           },
-          { completed: 0, duration: 0, price: 0, usdReward: 0 }
+          { completed: 0, duration: 0, price: 0, usdReward: 0 },
         );
 
         stats = {
@@ -365,28 +324,16 @@ export class JobsService {
       }
     }
     if (!stats) {
-      throw new Error('Failed to compute stats');
+      throw new Error("Failed to compute stats");
     }
     return stats;
   }
 
-  private nestTimeSeriesData(
-    data: any[],
-    groupByProject?: boolean,
-    groupByMarket?: boolean
-  ) {
+  private nestTimeSeriesData(data: any[], groupByProject?: boolean, groupByMarket?: boolean) {
     const nested: Record<string, any> = {};
 
     for (const row of data) {
-      const {
-        time,
-        project,
-        market,
-        completed,
-        duration,
-        price,
-        usdReward,
-      } = row;
+      const { time, project, market, completed, duration, price, usdReward } = row;
       if (!nested[time]) {
         nested[time] = {
           time,
@@ -405,9 +352,7 @@ export class JobsService {
       nested[time].usdReward += Number(usdReward || 0);
 
       if (groupByProject && project) {
-        let projectGroup = nested[time].projects.find(
-          (p: any) => p.project === project
-        );
+        let projectGroup = nested[time].projects.find((p: any) => p.project === project);
         if (!projectGroup) {
           projectGroup = {
             project,
@@ -439,7 +384,7 @@ export class JobsService {
 
   async getTimestamps(period: number) {
     const jobRows = await this.jobsRepo.findTimeStartsSince(
-      period ? Math.floor(Date.now() / 1000) - period : 0
+      period ? Math.floor(Date.now() / 1000) - period : 0,
     );
     const timeStamps = jobRows.map((job: { timeStart: number }) => job.timeStart);
     const updatedData: Array<{ x: number; y: number }> = [];
@@ -451,26 +396,26 @@ export class JobsService {
         const currentDate = new Date(timestamp);
         const startDate = new Date(currentDate.getFullYear(), 0, 1);
         const days = Math.floor(
-          (currentDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)
+          (currentDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000),
         );
 
         const weekNumber = Math.ceil(days / 7);
         let granularity: string | null;
         if (period > (365 / 3) * 24 * 3600) {
           // Bigger than 4 months, group by week
-          granularity = weekNumber + dayjs(timestamp).format('YYYY');
+          granularity = weekNumber + dayjs(timestamp).format("YYYY");
         } else if (period > 5 * 24 * 3600) {
           // Bigger than 5 days, group by day
-          granularity = dayjs(timestamp).format('DD/MMM/YYYY');
+          granularity = dayjs(timestamp).format("DD/MMM/YYYY");
         } else if (period > 12 * 3600) {
           // Bigger than 12 hours, group by hour
-          granularity = dayjs(timestamp).format('HH DD/MMM/YYYY');
+          granularity = dayjs(timestamp).format("HH DD/MMM/YYYY");
         } else if (period > 0) {
           // Under 12 hours
-          granularity = dayjs(timestamp).format('HH:mm DD/MMM/YYYY');
+          granularity = dayjs(timestamp).format("HH:mm DD/MMM/YYYY");
         } else {
           // All: group by month
-          granularity = dayjs(timestamp).format('MMM/YYYY');
+          granularity = dayjs(timestamp).format("MMM/YYYY");
         }
         if (granularity && tempDateCollection.includes(granularity)) {
           const index = tempDateCollection.indexOf(granularity);
