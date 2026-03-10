@@ -45,3 +45,11 @@ export function getDb() {
   db ??= drizzle({ client: getPool(), schema });
   return db;
 }
+
+export async function closePool() {
+  if (pool) {
+    await pool.end();
+    pool = undefined;
+    db = undefined;
+  }
+}

@@ -1,6 +1,7 @@
 import { initEnv } from "./plugins/env";
 import { createApp } from "./app";
 import { runMigrations } from "./db/migrate";
+import { closePool } from "./db/client";
 import { runStartupTasks } from "./tasks";
 import { Indexer } from "./indexer/indexer";
 import { createNosanaClient, type NosanaNetwork, type PartialClientConfig } from "@nosana/kit";
@@ -143,10 +144,27 @@ try {
   logger.info("API server will continue running");
 }
 
-const shutdown = () => {
+const SHUTDOWN_TIMEOUT_MS = 10_000;
+
+const shutdown = async () => {
   logger.info("Shutting down gracefully");
-  indexer.stop();
-  process.exit(0);
+
+  const forceExit = setTimeout(() => {
+    logger.warn("Shutdown timed out, forcing exit");
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+
+  try {
+    indexer.stop();
+    app.server?.stop(true);
+    await closePool();
+    logger.info("Shutdown complete");
+  } catch (error) {
+    logger.error({ err: error }, "Error during shutdown");
+  } finally {
+    clearTimeout(forceExit);
+    process.exit(0);
+  }
 };
 
 process.on("SIGTERM", shutdown);
