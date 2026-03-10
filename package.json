@@ -10,6 +10,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "ci:test": "vitest run --reporter=default --reporter=junit --outputFile.junit=./junit.xml",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write src/",

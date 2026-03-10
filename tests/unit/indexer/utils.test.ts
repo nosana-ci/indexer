@@ -296,7 +296,7 @@ describe('Indexer Utils', () => {
     describe('partial Job object conversion', () => {
       it('should convert partial Job with only address and state', () => {
         const partialJob: Partial<Job> & { address: Job['address'] } = {
-          address: testJobAddress,
+          address: testJobAddress as Job['address'],
           state: jobCompletedState,
         };
 
@@ -310,7 +310,7 @@ describe('Indexer Utils', () => {
 
       it('should only include defined fields in result', () => {
         const partialJob: Partial<Job> & { address: Job['address'] } = {
-          address: testJobAddress,
+          address: testJobAddress as Job['address'],
           timeout: BigInt(secondsInAnHour),
           ipfsResult: testIpfsResultHash,
         };
@@ -328,7 +328,7 @@ describe('Indexer Utils', () => {
 
       it('should handle Job with only address field', () => {
         const minimalJob: Partial<Job> & { address: Job['address'] } = {
-          address: testJobAddress,
+          address: testJobAddress as Job['address'],
         };
 
         const result = convertJobToInsertJob(minimalJob);
@@ -352,7 +352,7 @@ describe('Indexer Utils', () => {
 
       it('should not include undefined fields', () => {
         const partialJob: Partial<Job> & { address: Job['address'] } = {
-          address: testJobAddress,
+          address: testJobAddress as Job['address'],
           state: jobRunningState,
         };
 
