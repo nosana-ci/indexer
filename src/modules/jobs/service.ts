@@ -3,6 +3,7 @@ import { NotFoundError } from "elysia";
 import { eq, gt, gte, lt, lte, count, sql } from "drizzle-orm";
 import { jobs, type SelectJob } from "../../db/tables/jobs";
 import JobsRepository from "../../repositories/jobs.repository";
+import { AppError } from "../../errors";
 import {
   GroupBy,
   JobState,
@@ -328,7 +329,7 @@ export class JobsService {
       }
     }
     if (!stats) {
-      throw new Error("Failed to compute stats");
+      throw new AppError("Failed to compute stats", 500);
     }
     return stats;
   }

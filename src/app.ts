@@ -4,6 +4,7 @@ import { swagger } from "@elysiajs/swagger";
 import { jobsRouter } from "./modules/jobs";
 import { statsRouter, type StatsService } from "./modules/stats";
 import logger from "./logger";
+import { AppError } from "./errors";
 
 export const securityHeaders = {
   "X-Content-Type-Options": "nosniff",
@@ -33,7 +34,11 @@ export const createApp = (options?: { statsService?: StatsService }) => {
     .onAfterHandle(({ set }) => {
       Object.assign(set.headers, securityHeaders);
     })
-    .onError(({ error, status }) => {
+    .onError(({ error, status, request }) => {
+      if (error instanceof AppError) {
+        logger.warn({ status: error.status, code: error.code, path: request.url }, error.message);
+        return status(error.status, { message: error.message, code: error.code });
+      }
       if (typeof error === "object" && error !== null && "status" in error && "message" in error) {
         const { status: errStatus, message } = error as {
           status: number;
@@ -41,7 +46,7 @@ export const createApp = (options?: { statsService?: StatsService }) => {
         };
         return status(errStatus, { message });
       }
-      logger.error({ err: error }, "Unhandled error");
+      logger.error({ err: error, method: request.method, path: request.url }, "Unhandled error");
       return status(500, { message: "Internal server error" });
     })
     .use(jobsRouter);

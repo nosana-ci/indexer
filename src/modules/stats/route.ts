@@ -2,6 +2,7 @@ import { Elysia, t } from "elysia";
 import type StatsService from "./service";
 import { SpendingHistoryQuery } from "./model";
 import { getNosPrice } from "../../services/price.service";
+import { ValidationError } from "../../errors";
 
 export default function statsRouter(statsService: StatsService) {
   return new Elysia({ prefix: "/stats" })
@@ -12,14 +13,12 @@ export default function statsRouter(statsService: StatsService) {
         if (query.timestamp !== undefined) {
           timestamp = Number(query.timestamp);
           if (Number.isNaN(timestamp) || timestamp <= 0) {
-            throw Object.assign(new Error("Invalid 'timestamp'"), { status: 400 });
+            throw new ValidationError("Invalid 'timestamp'");
           }
         } else if (query.date !== undefined) {
           const d = new Date(query.date + "T00:00:00.000Z");
           if (Number.isNaN(d.getTime())) {
-            throw Object.assign(new Error("Invalid 'date'; use YYYY-MM-DD"), {
-              status: 400,
-            });
+            throw new ValidationError("Invalid 'date'; use YYYY-MM-DD");
           }
           timestamp = d.getTime() / 1000;
         } else {

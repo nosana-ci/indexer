@@ -2,6 +2,7 @@ import type { NosanaClient } from "@nosana/kit";
 import { sql } from "drizzle-orm";
 import StatsRepository from "../../repositories/stats.repository";
 import parentLogger from "../../logger";
+import { ValidationError } from "../../errors";
 
 const logger = parentLogger.child({ module: "stats" });
 
@@ -190,7 +191,7 @@ export default class StatsService {
     const { address, startDate, endDate, groupBy = "month", type } = params;
 
     if (!address) {
-      throw new Error(`No ${type === "spending" ? "user" : "node"} address provided.`);
+      throw new ValidationError(`No ${type === "spending" ? "user" : "node"} address provided`);
     }
 
     const parsedStartDate = new Date(startDate);
