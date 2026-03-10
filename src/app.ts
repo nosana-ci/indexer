@@ -4,6 +4,11 @@ import { swagger } from "@elysiajs/swagger";
 import { jobsRouter } from "./modules/jobs";
 import { statsRouter, type StatsService } from "./modules/stats";
 
+export const securityHeaders = {
+  "X-Content-Type-Options": "nosniff",
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+} as const;
+
 export const createApp = (options?: { statsService?: StatsService }) => {
   const app = new Elysia()
     .use(cors({ origin: true }))
@@ -24,6 +29,9 @@ export const createApp = (options?: { statsService?: StatsService }) => {
         },
       }),
     )
+    .onAfterHandle(({ set }) => {
+      Object.assign(set.headers, securityHeaders);
+    })
     .onError(({ error, status }) => {
       if (typeof error === "object" && error !== null && "status" in error && "message" in error) {
         const { status: errStatus, message } = error as {
