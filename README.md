@@ -163,6 +163,51 @@ bun run test:watch     # watch mode
 bun run test:coverage  # with coverage
 ```
 
+### Scenario tests
+
+Scenario tests run end-to-end against a live blockchain-indexer instance. They execute sequentially and use a skip-on-failure pattern — if a step fails, subsequent steps in the same flow are skipped.
+
+#### Running
+
+Start the indexer first, then:
+
+```bash
+bun run test:scenarios
+```
+
+By default this targets `http://localhost:3003`. Override with:
+
+```bash
+BACKEND_URL=https://indexer.example.com bun run test:scenarios
+```
+
+#### Targeting specific scenarios
+
+Pass a scenario name to run only that group:
+
+```bash
+bun run test:scenarios jobs      # all job scenarios
+bun run test:scenarios stats     # all stats scenarios
+bun run test:scenarios health    # health endpoint only
+bun run test:scenarios errors    # validation error scenarios
+```
+
+Target a specific flow within a scenario:
+
+```bash
+bun run test:scenarios jobs list-jobs
+bun run test:scenarios jobs get-job
+```
+
+#### Available scenarios
+
+| Scenario | Flows | What it tests |
+|----------|-------|---------------|
+| `health` | — | `/health` status and indexer details |
+| `jobs` | `list-jobs`, `get-job`, `running-jobs`, `job-stats` | Listing, filtering, single job lookup, running counts, and statistics |
+| `stats` | `price`, `overview` | NOS price (current and historical) and aggregated stats |
+| `errors` | `validation` | Invalid addresses, bad date params, missing required params |
+
 ---
 
 ## Deployment
