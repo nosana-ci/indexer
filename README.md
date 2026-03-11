@@ -123,6 +123,14 @@ One-command restart:
 
 The server listens on `PORT` (default 3000). The indexer starts WebSocket monitoring on startup; cron jobs run jobs/markets GPA, job processing, and stats refresh.
 
+By default, the application uses the `pino` logging package to produce JSON logs.
+With JOSN logs we cna add structured data to each log message.
+That data then gets parsed by log ingestion tools and can be used to query the logs more efficiently.
+However, for development, JSON logs aren't the nicest thing to look at.
+To make that better, we can use the [`pino-pretty` package](https://github.com/pinojs/pino-pretty?tab=readme-ov-file#install).
+The [docker-compose.yml](docker/docker-compose.yml) file is already configured to use `pino-pretty` in development,
+so if you're running with docker compose, you will already see pretty logs by default.
+
 ### Database (Drizzle)
 
 - **Config**: `config/drizzle.config.ts`

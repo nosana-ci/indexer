@@ -5,7 +5,7 @@ services:
     build:
       context: ./bun-node
       dockerfile: dockerfile
-    command: bun run dev
+    command: ash -c "npm install -g pino-pretty; bun run dev | pino-pretty"≠
     working_dir: /code
     volumes:
       - ../:/code:cached
