@@ -15,7 +15,17 @@ createFlow('Health endpoint', (step) => {
     expect(healthBody).toHaveProperty('status', 'healthy');
   });
 
-  step('Response contains indexer details', () => {
+  step('Response contains mode and timestamp', () => {
+    expect(healthBody).toHaveProperty('mode');
+    expect(healthBody).toHaveProperty('timestamp');
+  });
+
+  step('Response contains indexer details when running in indexer/all mode', () => {
+    const mode = healthBody.mode as string;
+    if (mode !== 'indexer' && mode !== 'all') {
+      return; // indexer details only present in indexer/all modes
+    }
+
     const indexer = healthBody.indexer as Record<string, unknown>;
     expect(indexer).toBeDefined();
     expect(indexer).toHaveProperty('isRunning');

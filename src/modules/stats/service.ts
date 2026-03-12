@@ -19,10 +19,10 @@ import {
 const logger = parentLogger.child({ module: "stats" });
 
 export default class StatsService {
-  private readonly nosanaClient: NosanaClient;
+  private readonly nosanaClient: NosanaClient | null;
   private readonly statsRepo: StatsRepository;
 
-  constructor(nosanaClient: NosanaClient) {
+  constructor(nosanaClient: NosanaClient | null = null) {
     this.nosanaClient = nosanaClient;
     this.statsRepo = new StatsRepository();
   }
@@ -45,6 +45,9 @@ export default class StatsService {
   }
 
   async refreshStats() {
+    if (!this.nosanaClient) {
+      throw new Error("NosanaClient is required for refreshStats");
+    }
     try {
       let stakeStats: {
         nosStaked?: number | null;
@@ -94,6 +97,9 @@ export default class StatsService {
     nosStaked: number | null;
     xNosStaked: number | null;
   }> {
+    if (!this.nosanaClient) {
+      throw new Error("NosanaClient is required for fetchStakingStats");
+    }
     try {
       const response = await this.nosanaClient.stake.all();
       let totalNos = BigInt(0);
