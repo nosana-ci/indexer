@@ -40,6 +40,7 @@ export default () => {
           interval: 5_000,
         },
       },
+      globalSetup: ['./testing/scenario/global-setup.ts'],
       setupFiles: ['./testing/scenario/setup.ts'],
       env: {
         BACKEND_URL: process.env.BACKEND_URL ?? 'http://localhost:3003',

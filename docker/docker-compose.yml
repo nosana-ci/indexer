@@ -1,7 +1,7 @@
 name: blockchain-indexer
 
 x-common-env: &common-env
-  APP_ENV: local
+  APP_ENV: development
   SOLANA_NETWORK: devnet
   POSTGRES_USER: postgres
   POSTGRES_PASSWORD: postgres
@@ -13,7 +13,7 @@ x-common-service: &common-service
   build:
     context: ./bun-node
     dockerfile: dockerfile
-  command: ash -c "npm install -g pino-pretty@10; bun run dev | pino-pretty"
+  command: bun run dev
   working_dir: /code
   volumes:
     - ../:/code:cached

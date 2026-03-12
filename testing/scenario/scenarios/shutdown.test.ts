@@ -26,10 +26,8 @@ createFlow('Graceful shutdown', (step) => {
   });
 
   step('SIGTERM triggers graceful shutdown with cron cleanup', async () => {
-    // Send SIGTERM directly to the bun process inside the container.
-    // The docker command is: ash -c "bun run dev | pino-pretty"
-    // PID 1 is ash, which doesn't forward signals, so we target bun directly.
-    dc(`exec -T ${CRON_SERVICE} sh -c "kill \\$(pidof bun)"`);
+    // Send SIGTERM to PID 1 (bun) inside the container.
+    dc(`exec -T ${CRON_SERVICE} kill -TERM 1`);
 
     // Wait for bun to shut down, which causes the container to stop
     await new Promise((resolve) => setTimeout(resolve, 5000));

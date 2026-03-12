@@ -167,19 +167,28 @@ bun run test:coverage  # with coverage
 
 Scenario tests run end-to-end against a live blockchain-indexer instance. They execute sequentially and use a skip-on-failure pattern — if a step fails, subsequent steps in the same flow are skipped.
 
-#### Running
+#### Dev environment lifecycle
 
-Start the indexer first, then:
+The scenario tests automatically manage the Docker Compose dev environment via a vitest `globalSetup` hook (`testing/scenario/global-setup.ts`):
+
+1. **Not running** — `docker compose up -d --build --wait` starts the stack, and it is torn down after tests complete.
+2. **Already running** — the stack is rebuilt in-place (`--build`) to pick up code changes, and left running after tests complete.
+
+The health endpoint is polled (up to 120 s) before any test file executes.
+
+This means you can simply run:
 
 ```bash
 bun run test:scenarios
 ```
 
-By default this targets `http://localhost:3003`. Override with:
+without starting Docker Compose first. By default this targets `http://localhost:3003`. Override with:
 
 ```bash
 BACKEND_URL=https://indexer.example.com bun run test:scenarios
 ```
+
+> When `BACKEND_URL` points to a remote instance, the global setup still rebuilds the local Docker stack. To skip that, ensure the local stack is already running.
 
 #### Targeting specific scenarios
 
