@@ -87,7 +87,10 @@ export class Indexer {
           logger.debug({ address: event.data.address }, "JobAccount change");
           const updatedJob = await this.handleJobUpdate(event.data);
           if (updatedJob) {
-            logger.debug({ address: updatedJob.address }, "WebSocket updated/inserted job account data");
+            logger.debug(
+              { address: updatedJob.address },
+              "WebSocket updated/inserted job account data",
+            );
           }
         } else if (event.type === MonitorEventType.MARKET) {
           logger.debug({ address: event.data.address }, "MarketAccount change");
@@ -96,7 +99,10 @@ export class Indexer {
           logger.debug({ address: event.data.address }, "RunAccount change");
           const updatedJob = await this.handleRunUpdate(event.data);
           if (updatedJob) {
-            logger.debug({ address: updatedJob.address }, "WebSocket updated/inserted job account data");
+            logger.debug(
+              { address: updatedJob.address },
+              "WebSocket updated/inserted job account data",
+            );
           }
         }
       }
@@ -117,10 +123,16 @@ export class Indexer {
   async handleRunUpdate(runAccount: Run): Promise<SelectJob | null> {
     let jobFromRun = await this.nosanaClient.jobs.get(runAccount.job, false);
     if (!jobFromRun) {
-      logger.error({ runAddress: runAccount.address }, "Could not get job account data from run account");
+      logger.error(
+        { runAddress: runAccount.address },
+        "Could not get job account data from run account",
+      );
       return null;
     }
-    logger.debug({ jobAddress: jobFromRun.address, runAddress: runAccount.address }, "Found job belonging to run");
+    logger.debug(
+      { jobAddress: jobFromRun.address, runAddress: runAccount.address },
+      "Found job belonging to run",
+    );
     jobFromRun = {
       ...jobFromRun,
       state: 1,
@@ -153,7 +165,10 @@ export class Indexer {
           try {
             const exists = await checkJobExists(this.nosanaClient, removeJobsFromDb[i]);
             if (!exists) {
-              logger.info({ job: removeJobsFromDb[i] }, "Queued job not found on-chain, removing from db");
+              logger.info(
+                { job: removeJobsFromDb[i] },
+                "Queued job not found on-chain, removing from db",
+              );
               await this.jobsRepo.delete(removeJobsFromDb[i]);
             }
           } catch (e: unknown) {

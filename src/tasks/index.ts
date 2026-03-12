@@ -49,7 +49,10 @@ export async function runStartupTasks(tasks: StartupTask[] = startupTasksRegistr
       await db.insert(appTasksHistory).values({ taskId: task.id });
       logger.info({ taskId: task.id, description: task.description }, "Completed one-time task");
     } catch (error) {
-      logger.error({ err: error, taskId: task.id, description: task.description }, "Error processing one-time task");
+      logger.error(
+        { err: error, taskId: task.id, description: task.description },
+        "Error processing one-time task",
+      );
       logger.warn({ taskId: task.id }, "Skipping task due to error");
     }
   }

@@ -23,13 +23,8 @@ export function formatMonthPrefix(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export function extractAmount(
-  row: Record<string, unknown>,
-  type: HistoryType,
-): number {
-  return type === "spending"
-    ? toAmount(row.total_spent)
-    : toAmount(row.amount);
+export function extractAmount(row: Record<string, unknown>, type: HistoryType): number {
+  return type === "spending" ? toAmount(row.total_spent) : toAmount(row.amount);
 }
 
 export function groupRowsIntoPeriods(
@@ -182,11 +177,7 @@ export function computeSameDayComparison(
     return null;
   }
 
-  const maxDaysInPrevMonth = new Date(
-    prevDate.getFullYear(),
-    prevDate.getMonth() + 1,
-    0,
-  ).getDate();
+  const maxDaysInPrevMonth = new Date(prevDate.getFullYear(), prevDate.getMonth() + 1, 0).getDate();
   const sameDayInPrevMonth = Math.min(dayOfMonth, maxDaysInPrevMonth);
   let amountUpToSameDayLastMonth = 0;
 

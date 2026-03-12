@@ -211,8 +211,11 @@ export default class StatsService {
       attachDailyBreakdowns(periods, dailyRows, type);
     }
 
-    const { forecast, comparison, sameDayComparison, currentMonthUsd } =
-      this.computeAnalytics(periods, groupBy, type);
+    const { forecast, comparison, sameDayComparison, currentMonthUsd } = this.computeAnalytics(
+      periods,
+      groupBy,
+      type,
+    );
 
     return {
       address,

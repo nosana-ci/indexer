@@ -133,7 +133,10 @@ if (jobCleanerService) {
 
 app.listen(Number(process.env.PORT) || 3000);
 
-logger.info({ host: app.server?.hostname, port: app.server?.port }, "Blockchain Indexer is running");
+logger.info(
+  { host: app.server?.hostname, port: app.server?.port },
+  "Blockchain Indexer is running",
+);
 
 try {
   logger.info("Starting indexer WebSocket monitoring");

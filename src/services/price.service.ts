@@ -86,7 +86,10 @@ async function fetchNosPrice(timestamp: Date): Promise<number | null> {
     );
 
     if (!response.ok) {
-      logger.error({ status: response.status, statusText: response.statusText }, "CoinGecko API error");
+      logger.error(
+        { status: response.status, statusText: response.statusText },
+        "CoinGecko API error",
+      );
       return null;
     }
 
