@@ -120,6 +120,7 @@ if (shouldRunCron(mode) && processor) {
       cron({
         name: "jobs-gpa",
         pattern: "*/5 * * * *",
+        protect: true,
         async run() {
           logger.info("Running Jobs GPA and Markets GPA");
           try {
@@ -137,6 +138,7 @@ if (shouldRunCron(mode) && processor) {
       cron({
         name: "job-processing",
         pattern: "*/2 * * * *",
+        protect: true,
         async run() {
           logger.info("Running Job Processing");
           try {
@@ -156,6 +158,7 @@ if (shouldRunCron(mode) && statsService) {
     cron({
       name: "refresh-stats",
       pattern: "*/5 * * * *",
+      protect: true,
       async run() {
         logger.info("Refreshing stats");
         try {
@@ -175,6 +178,7 @@ if (shouldRunCron(mode) && jobCleanerService) {
     cron({
       name: "job-cleaner",
       pattern: "0 */6 * * *",
+      protect: true,
       async run() {
         logger.info("Running Job Cleaner");
         try {
@@ -207,7 +211,8 @@ if (indexer) {
   }
 }
 
-const SHUTDOWN_TIMEOUT_MS = 10_000;
+const SHUTDOWN_TIMEOUT_MS = 30_000;
+const CRON_POLL_INTERVAL_MS = 500;
 
 const shutdown = async () => {
   logger.info("Shutting down gracefully");
@@ -218,9 +223,36 @@ const shutdown = async () => {
   }, SHUTDOWN_TIMEOUT_MS);
 
   try {
+    // Stop indexer WebSocket monitoring
     if (indexer) {
       indexer.stop();
     }
+
+    // Stop cron scheduling and wait for in-flight jobs to complete
+    const crons = (app.store as Record<string, unknown>).cron as
+      | Record<string, { stop: () => void; isBusy: () => boolean }>
+      | undefined;
+
+    if (crons) {
+      for (const [name, job] of Object.entries(crons)) {
+        job.stop();
+        logger.info({ cron: name }, "Stopped cron scheduling");
+      }
+
+      const busyJobNames = () =>
+        Object.entries(crons)
+          .filter(([, job]) => job.isBusy())
+          .map(([name]) => name);
+
+      let busy = busyJobNames();
+      while (busy.length > 0) {
+        logger.info({ jobs: busy }, "Waiting for in-flight cron jobs to complete");
+        await new Promise((resolve) => setTimeout(resolve, CRON_POLL_INTERVAL_MS));
+        busy = busyJobNames();
+      }
+    }
+
+    // Stop HTTP server and close DB pool
     app.server?.stop(true);
     await closePool();
     logger.info("Shutdown complete");
