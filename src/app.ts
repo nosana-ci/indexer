@@ -1,10 +1,10 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { swagger } from "@elysiajs/swagger";
-import { jobsRouter } from "./modules/jobs";
-import { statsRouter, type StatsService } from "./modules/stats";
-import logger from "./logger";
-import { AppError } from "./errors";
+import { jobsRouter } from "./modules/jobs/index.js";
+import { statsRouter, type StatsService } from "./modules/stats/index.js";
+import logger from "./logger.js";
+import { AppError } from "./errors.js";
 
 export const securityHeaders = {
   "X-Content-Type-Options": "nosniff",

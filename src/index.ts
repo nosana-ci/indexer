@@ -1,17 +1,17 @@
-import { initEnv } from "./plugins/env";
-import { createApp } from "./app";
-import { runMigrations } from "./db/migrate";
-import { closePool } from "./db/client";
-import { runStartupTasks } from "./tasks";
-import { Indexer } from "./indexer/indexer";
-import { JobProcessor } from "./indexer/job-processor";
+import { initEnv } from "./plugins/env.js";
+import { createApp } from "./app.js";
+import { runMigrations } from "./db/migrate.js";
+import { closePool } from "./db/client.js";
+import { runStartupTasks } from "./tasks/index.js";
+import { Indexer } from "./indexer/indexer.js";
+import { JobProcessor } from "./indexer/job-processor.js";
 import { createNosanaClient, type NosanaNetwork, type PartialClientConfig } from "@nosana/kit";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { cron } from "@elysiajs/cron";
-import { StatsService } from "./modules/stats";
-import JobCleanerService from "./services/job-cleaner.service";
-import logger from "./logger";
-import { getAppMode, shouldRunApi, shouldRunIndexer, shouldRunCron } from "./config/mode";
+import { StatsService } from "./modules/stats/index.js";
+import JobCleanerService from "./services/job-cleaner.service.js";
+import logger from "./logger.js";
+import { getAppMode, shouldRunApi, shouldRunIndexer, shouldRunCron } from "./config/mode.js";
 
 initEnv();
 
