@@ -169,7 +169,7 @@ Scenario tests run end-to-end against a live blockchain-indexer instance. They e
 
 #### Dev environment lifecycle
 
-The scenario tests automatically manage the Docker Compose dev environment via a vitest `globalSetup` hook (`testing/scenario/global-setup.ts`):
+The scenario tests automatically manage the Docker Compose dev environment via a vitest `globalSetup` hook (`tests/scenario/global-setup.ts`):
 
 1. **Not running** — `docker compose up -d --build --wait` starts the stack, and it is torn down after tests complete.
 2. **Already running** — the stack is rebuilt in-place (`--build`) to pick up code changes, and left running after tests complete.

@@ -17,8 +17,8 @@ import {
   testTimeEnd,
   testNodeAddress,
   testIpfsJobHash,
-} from '../../utils/test-data.factory';
-import { createMockNosanaClient } from '../../mocks/external-apis.mock';
+} from '../utils/test-data.factory';
+import { createMockNosanaClient } from '../mocks/external-apis.mock';
 import type { SelectJob } from '../../../src/db/tables/jobs';
 import type { Job } from '@nosana/kit';
 

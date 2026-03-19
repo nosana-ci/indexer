@@ -5,8 +5,8 @@ import {
   jobRunningState,
   jobCompletedState,
   marketQueueNodeType,
-} from '../../utils/test-data.factory';
-import { createMockNosanaClient } from '../../mocks/external-apis.mock';
+} from '../utils/test-data.factory';
+import { createMockNosanaClient } from '../mocks/external-apis.mock';
 import { Indexer } from '../../../src/indexer/indexer';
 
 async function* emptyAsyncIterable() {}

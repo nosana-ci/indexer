@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 
-const defaultInclude = 'testing/scenario/scenarios/*.test.ts';
+const defaultInclude = 'tests/scenario/scenarios/*.test.ts';
 
 export default () => {
   const scenario = process.argv[5];
@@ -14,8 +14,8 @@ export default () => {
     scenario && scenario.length > 0
       ? [
           flow
-            ? `testing/scenario/scenarios/${scenario}/${flow}.test.ts`
-            : `testing/scenario/scenarios/${scenario}.test.ts`,
+            ? `tests/scenario/scenarios/${scenario}/${flow}.test.ts`
+            : `tests/scenario/scenarios/${scenario}.test.ts`,
         ]
       : [defaultInclude];
 
@@ -40,8 +40,8 @@ export default () => {
           interval: 5_000,
         },
       },
-      globalSetup: ['./testing/scenario/global-setup.ts'],
-      setupFiles: ['./testing/scenario/setup.ts'],
+      globalSetup: ['./tests/scenario/global-setup.ts'],
+      setupFiles: ['./tests/scenario/setup.ts'],
       env: {
         BACKEND_URL: process.env.BACKEND_URL ?? 'http://localhost:3003',
         SOLANA_NETWORK: process.env.SOLANA_NETWORK ?? 'mainnet',

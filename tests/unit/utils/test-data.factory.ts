@@ -2,7 +2,7 @@
  * Test data factory utilities for indexer tests.
  * Indexer-related factories and constants only.
  */
-import { jobStateMappingReverse } from '../../src/modules/jobs/model';
+import { jobStateMappingReverse } from '../../../src/modules/jobs/model';
 
 const jobStateMapping: Record<number, string> = {
   0: 'QUEUED',

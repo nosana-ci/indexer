@@ -23,8 +23,8 @@ import {
   testProjectAddress,
   ipfsSuccessStatus,
   indexerBoundaryValues,
-} from '../../utils/test-data.factory';
-import { createMockNosanaClient } from '../../mocks/external-apis.mock';
+} from '../utils/test-data.factory';
+import { createMockNosanaClient } from '../mocks/external-apis.mock';
 import { JobProcessor } from '../../../src/indexer/job-processor';
 import { checkJobExists } from '../../../src/indexer/utils';
 import { getNosPrice } from '../../../src/services/price.service';
