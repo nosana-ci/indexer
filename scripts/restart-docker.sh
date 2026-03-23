@@ -7,7 +7,7 @@ function print() {
 }
 
 print "(Re)starting..."
-if docker-compose -f docker/docker-compose.yml down && docker-compose -f docker/docker-compose.yml up -d blockchain-indexer-db; then
+if docker-compose -f docker/docker-compose.yml down && docker-compose -f docker/docker-compose.yml up -d db; then
     print "Installing dependencies..."
     docker-compose -f docker/docker-compose.yml run blockchain-indexer bun install --frozen-lockfile
     print "Starting all containers..."
