@@ -2,7 +2,9 @@ name: blockchain-indexer
 
 x-common-env: &common-env
   APP_ENV: development
-  SOLANA_NETWORK: devnet
+  SOLANA_NETWORK: ${SOLANA_NETWORK:-devnet}
+  SOLANA_RPC: ${SOLANA_RPC:-}
+  SOLANA_WS: ${SOLANA_WS:-}
   POSTGRES_USER: postgres
   POSTGRES_PASSWORD: postgres
   POSTGRES_DB: nosana_indexer
@@ -16,9 +18,12 @@ x-common-service: &common-service
   volumes:
     - ../:/code:cached
   depends_on:
-    - db
+    db:
+      condition: service_healthy
   links:
     - db
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
   networks:
     - deployments_network
 

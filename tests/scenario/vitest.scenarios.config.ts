@@ -45,6 +45,7 @@ export default () => {
       env: {
         BACKEND_URL: process.env.BACKEND_URL ?? 'http://localhost:3003',
         SOLANA_NETWORK: process.env.SOLANA_NETWORK ?? 'mainnet',
+        NOSANA_NETWORK: 'localnet',
       },
     },
   });
