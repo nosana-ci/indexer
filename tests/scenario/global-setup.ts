@@ -72,6 +72,15 @@ async function waitForHealthy(): Promise<void> {
 export default async function globalSetup(): Promise<() => Promise<void>> {
   const wasRunning = isStackRunning();
 
+  // Ensure the external Docker network exists
+  try {
+    execSync("docker network create deployments_network", {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch {
+    // Already exists — ignore
+  }
+
   // Start the Nosana localnet validator (Solana)
   console.log("Starting Nosana localnet...");
   startLocalnet({ verbose: false });
