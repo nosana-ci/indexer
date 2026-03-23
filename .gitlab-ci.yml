@@ -67,7 +67,7 @@ scenario test:
     - export DOCKER_TLS_CERTDIR=
     - export DOCKER_TLS_VERIFY=
     - export DOCKER_CERT_PATH=
-    - apk add --no-cache bash curl unzip
+    - apk add --no-cache bash curl unzip libstdc++ libgcc
     - curl -fsSL https://bun.sh/install | bash
     - export PATH="$HOME/.bun/bin:$PATH"
     - bun install --frozen-lockfile
