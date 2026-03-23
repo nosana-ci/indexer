@@ -58,23 +58,35 @@ Base URL is the server root (e.g. `http://localhost:3000`). All job and stats en
 
 ### Environment
 
-Env is loaded in this order:
+Environment variables are loaded in this order:
 
-1. `.env`
-2. `.env.${APP_ENV}` (overrides `.env`)
+1. `.env` (if present)
+2. `.env.${APP_ENV}` (overrides `.env`, where `APP_ENV` is e.g. `local`, `development`)
 
-Create a local env file:
+Key variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SOLANA_NETWORK` | Solana cluster (`mainnet` or `devnet`) | `mainnet` |
+| `DATABASE_URL` | PostgreSQL connection string | — |
+| `SOLANA_RPC` | RPC endpoint | defaults for network |
+| `PORT` | Server port | `3000` |
+
+> **No env files are baked into the Docker image.** Previously `.env.prd` and `.env.dev` were
+> copied into the image and tracked in git. This was removed because baking env files into images
+> risks leaking secrets if credentials are ever added, couples the image to a specific environment,
+> and requires rebuilding to change configuration. Instead, `SOLANA_NETWORK` defaults to `mainnet`
+> in the Dockerfile and should be overridden at runtime for other environments (see
+> [Deployment](#deployment) below).
+
+For local development, the Docker Compose setup passes all variables directly. For running
+outside Docker, create a `.env` file:
 
 ```bash
-cp env.local.example .env
+cp .env.development .env
 ```
 
-Configure at least:
-
-- `DATABASE_URL` – PostgreSQL connection string
-- `SOLANA_RPC` – RPC endpoint (optional; defaults for network)
-- `SOLANA_NETWORK` – e.g. `mainnet` or `devnet`
-- `PORT` – server port (default `3000`)
+Edit as needed — `.env` is gitignored.
 
 ### Run with Docker Compose (recommended)
 
@@ -111,6 +123,14 @@ One-command restart:
 
 The server listens on `PORT` (default 3000). The indexer starts WebSocket monitoring on startup; cron jobs run jobs/markets GPA, job processing, and stats refresh.
 
+By default, the application uses the `pino` logging package to produce JSON logs.
+With JOSN logs we cna add structured data to each log message.
+That data then gets parsed by log ingestion tools and can be used to query the logs more efficiently.
+However, for development, JSON logs aren't the nicest thing to look at.
+To make that better, we can use the [`pino-pretty` package](https://github.com/pinojs/pino-pretty?tab=readme-ov-file#install).
+The [docker-compose.yml](docker/docker-compose.yml) file is already configured to use `pino-pretty` in development,
+so if you're running with docker compose, you will already see pretty logs by default.
+
 ### Database (Drizzle)
 
 - **Config**: `config/drizzle.config.ts`
@@ -142,3 +162,88 @@ bun run test           # run once
 bun run test:watch     # watch mode
 bun run test:coverage  # with coverage
 ```
+
+### Scenario tests
+
+Scenario tests run end-to-end against a live blockchain-indexer instance. They execute sequentially and use a skip-on-failure pattern — if a step fails, subsequent steps in the same flow are skipped.
+
+#### Dev environment lifecycle
+
+The scenario tests automatically manage the Docker Compose dev environment via a vitest `globalSetup` hook (`tests/scenario/global-setup.ts`):
+
+1. **Not running** — `docker compose up -d --build --wait` starts the stack, and it is torn down after tests complete.
+2. **Already running** — the stack is rebuilt in-place (`--build`) to pick up code changes, and left running after tests complete.
+
+The health endpoint is polled (up to 120 s) before any test file executes.
+
+This means you can simply run:
+
+```bash
+bun run test:scenarios
+```
+
+without starting Docker Compose first. By default this targets `http://localhost:3003`. Override with:
+
+```bash
+BACKEND_URL=https://indexer.example.com bun run test:scenarios
+```
+
+> When `BACKEND_URL` points to a remote instance, the global setup still rebuilds the local Docker stack. To skip that, ensure the local stack is already running.
+
+#### Targeting specific scenarios
+
+Pass a scenario name to run only that group:
+
+```bash
+bun run test:scenarios jobs      # all job scenarios
+bun run test:scenarios stats     # all stats scenarios
+bun run test:scenarios health    # health endpoint only
+bun run test:scenarios errors    # validation error scenarios
+```
+
+Target a specific flow within a scenario:
+
+```bash
+bun run test:scenarios jobs list-jobs
+bun run test:scenarios jobs get-job
+```
+
+#### Available scenarios
+
+| Scenario | Flows | What it tests |
+|----------|-------|---------------|
+| `health` | — | `/health` status and indexer details |
+| `jobs` | `list-jobs`, `get-job`, `running-jobs`, `job-stats` | Listing, filtering, single job lookup, running counts, and statistics |
+| `stats` | `price`, `overview` | NOS price (current and historical) and aggregated stats |
+| `errors` | `validation` | Invalid addresses, bad date params, missing required params |
+
+---
+
+## Deployment
+
+The Docker image does not contain any environment files. All environment-specific configuration
+must be injected at runtime.
+
+### Docker
+
+```bash
+docker run -e SOLANA_NETWORK=devnet -e DATABASE_URL=... -p 3000:3000 blockchain-indexer
+```
+
+### Kubernetes
+
+Set environment variables in the pod spec or Helm values:
+
+```yaml
+env:
+  - name: SOLANA_NETWORK
+    value: "devnet"
+  - name: DATABASE_URL
+    valueFrom:
+      secretKeyRef:
+        name: blockchain-indexer
+        key: database-url
+```
+
+`SOLANA_NETWORK` defaults to `mainnet` in the image, so production deployments only need to set
+it explicitly if targeting a different network.

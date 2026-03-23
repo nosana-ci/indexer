@@ -1,32 +1,69 @@
 name: blockchain-indexer
 
+x-common-env: &common-env
+  APP_ENV: development
+  SOLANA_NETWORK: devnet
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  POSTGRES_DB: nosana_indexer
+  POSTGRES_HOST: db
+  POSTGRES_PORT: 5432
+
+x-common-service: &common-service
+  build:
+    context: ./bun-node
+    dockerfile: dockerfile
+  command: bun run dev
+  working_dir: /code
+  volumes:
+    - ../:/code:cached
+  depends_on:
+    - db
+  links:
+    - db
+  networks:
+    - deployments_network
+
 services:
-  blockchain-indexer:
-    build:
-      context: ./bun-node
-      dockerfile: dockerfile
-    command: bun run dev
-    working_dir: /code
-    volumes:
-      - ../:/code:cached
+  api:
+    <<: *common-service
     ports:
       - 3003:3003
-    depends_on:
-      - blockchain-indexer-db
-    links:
-      - blockchain-indexer-db
     environment:
-      - APP_ENV=local
-      - PORT=3003
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=nosana_indexer
-      - POSTGRES_HOST=blockchain-indexer-db
-      - POSTGRES_PORT=5432
-    networks:
-      - deployments_network
+      <<: *common-env
+      APP_MODE: api
+      PORT: 3003
 
-  blockchain-indexer-db:
+  indexer:
+    <<: *common-service
+    ports:
+      - 3004:3004
+    environment:
+      <<: *common-env
+      APP_MODE: indexer
+      PORT: 3004
+
+  cron:
+    <<: *common-service
+    ports:
+      - 3005:3005
+    environment:
+      <<: *common-env
+      APP_MODE: cron
+      PORT: 3005
+
+  blockchain-indexer:
+    <<: *common-service
+    profiles:
+      - legacy
+    ports:
+      - 3006:3006
+    environment:
+      <<: *common-env
+      APP_MODE: all
+      PORT: 3006
+
+  db:
     image: postgres:18
     restart: always
     ports:
@@ -38,14 +75,14 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=nosana_indexer
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -d nosana_indexer -U blockchain-indexer-db']
+      test: ['CMD-SHELL', 'pg_isready -d nosana_indexer -U postgres']
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       deployments_network:
         aliases:
-          - blockchain-indexer-db
+          - db
 
   adminer:
     image: adminer:4.8.1
@@ -53,10 +90,10 @@ services:
       - 8084:8080
     restart: always
     depends_on:
-      blockchain-indexer-db:
+      db:
         condition: service_healthy
     environment:
-      - ADMINER_DEFAULT_SERVER=blockchain-indexer-db
+      - ADMINER_DEFAULT_SERVER=db
     volumes:
       - ./adminer-php.ini:/usr/local/etc/php/conf.d/99-session.ini:ro
     networks:

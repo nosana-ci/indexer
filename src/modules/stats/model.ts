@@ -1,4 +1,4 @@
-import { t } from 'elysia';
+import { t } from "elysia";
 
 export const GetStatsResponse = t.Object({
   date: t.String(),
@@ -19,7 +19,7 @@ export const SpendingHistoryQuery = t.Object({
   address: t.String(),
   start_date: t.String(),
   end_date: t.Optional(t.String()),
-  group_by: t.Optional(t.Union([t.Literal('day'), t.Literal('month')])),
+  group_by: t.Optional(t.Union([t.Literal("day"), t.Literal("month")])),
 });
 
 export const SpendingHistoryResponse = t.Object({
@@ -35,12 +35,10 @@ export const SpendingHistoryResponse = t.Object({
         t.Object({
           market: t.String(),
           totalSpent: t.Number(),
-        })
+        }),
       ),
-      daily_breakdown: t.Optional(
-        t.Record(t.String(), t.Record(t.String(), t.Number()))
-      ),
-    })
+      daily_breakdown: t.Optional(t.Record(t.String(), t.Record(t.String(), t.Number()))),
+    }),
   ),
   forecast: t.Union([t.Number(), t.Null()]),
   comparison: t.Union([
@@ -79,12 +77,10 @@ export const EarningsHistoryResponse = t.Object({
         t.Object({
           market: t.String(),
           totalEarnedUsd: t.Number(),
-        })
+        }),
       ),
-      daily_breakdown: t.Optional(
-        t.Record(t.String(), t.Record(t.String(), t.Number()))
-      ),
-    })
+      daily_breakdown: t.Optional(t.Record(t.String(), t.Record(t.String(), t.Number()))),
+    }),
   ),
   forecast: t.Union([t.Number(), t.Null()]),
   comparison: t.Union([

@@ -2,6 +2,7 @@ import { Elysia, t } from "elysia";
 import type StatsService from "./service";
 import { SpendingHistoryQuery } from "./model";
 import { getNosPrice } from "../../services/price.service";
+import { ValidationError } from "../../errors";
 
 export default function statsRouter(statsService: StatsService) {
   return new Elysia({ prefix: "/stats" })
@@ -12,22 +13,19 @@ export default function statsRouter(statsService: StatsService) {
         if (query.timestamp !== undefined) {
           timestamp = Number(query.timestamp);
           if (Number.isNaN(timestamp) || timestamp <= 0) {
-            throw Object.assign(new Error("Invalid 'timestamp'"), { status: 400 });
+            throw new ValidationError("Invalid 'timestamp'");
           }
         } else if (query.date !== undefined) {
           const d = new Date(query.date + "T00:00:00.000Z");
           if (Number.isNaN(d.getTime())) {
-            throw Object.assign(new Error("Invalid 'date'; use YYYY-MM-DD"), {
-              status: 400,
-            });
+            throw new ValidationError("Invalid 'date'; use YYYY-MM-DD");
           }
           timestamp = d.getTime() / 1000;
         } else {
           timestamp = Math.floor(Date.now() / 1000);
         }
 
-        const maxAgeMinutes =
-          query.maxAgeMinutes !== undefined ? Number(query.maxAgeMinutes) : 15;
+        const maxAgeMinutes = query.maxAgeMinutes !== undefined ? Number(query.maxAgeMinutes) : 15;
         const price = await getNosPrice(timestamp, maxAgeMinutes);
 
         return { price };
@@ -49,7 +47,7 @@ export default function statsRouter(statsService: StatsService) {
             "Returns the NOS price (USD). Defaults to current time when neither timestamp nor date is provided. Query: timestamp (Unix seconds), date (YYYY-MM-DD), or omit for now; optional maxAgeMinutes for cache tolerance.",
           tags: ["Stats"],
         },
-      }
+      },
     )
     .get(
       "/",
@@ -61,7 +59,7 @@ export default function statsRouter(statsService: StatsService) {
           tags: ["Stats"],
           description: "Get the latest statistics",
         },
-      }
+      },
     )
     .get(
       "/spending-history",
@@ -70,7 +68,7 @@ export default function statsRouter(statsService: StatsService) {
           query.address,
           query.start_date,
           query.end_date ?? undefined,
-          (query.group_by as "day" | "month") ?? "month"
+          (query.group_by as "day" | "month") ?? "month",
         );
       },
       {
@@ -80,7 +78,7 @@ export default function statsRouter(statsService: StatsService) {
           description:
             "Flexible endpoint to retrieve spending history with custom date ranges and grouping options.",
         },
-      }
+      },
     )
     .get(
       "/earning-history",
@@ -89,7 +87,7 @@ export default function statsRouter(statsService: StatsService) {
           query.address,
           query.start_date,
           query.end_date ?? undefined,
-          (query.group_by as "day" | "month") ?? "month"
+          (query.group_by as "day" | "month") ?? "month",
         );
       },
       {
@@ -99,6 +97,6 @@ export default function statsRouter(statsService: StatsService) {
           description:
             "Flexible endpoint to retrieve earning history of node with custom date ranges and grouping options.",
         },
-      }
+      },
     );
 }

@@ -37,8 +37,8 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
               "List jobs with optional filtering by state, market, node, poster, and payer",
             tags: ["Jobs"],
           },
-        }
-      )
+        },
+      ),
   )
   .get(
     "/running",
@@ -50,7 +50,7 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
         summary: "Get running jobs count per market",
         tags: ["Jobs"],
       },
-    }
+    },
   )
   .get(
     "/running-nodes",
@@ -65,7 +65,7 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
         summary: "Get running nodes for a market",
         tags: ["Jobs"],
       },
-    }
+    },
   )
   .get(
     "/long-running",
@@ -80,7 +80,7 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
           "Returns jobs running longer than their timeout, optionally filtered by market or payer",
         tags: ["Jobs"],
       },
-    }
+    },
   )
   .get(
     "/stats",
@@ -95,13 +95,13 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
           "Get aggregated job statistics with optional grouping and time series (filter by market, node, poster, payer)",
         tags: ["Jobs"],
       },
-    }
+    },
   )
   .get(
     "/stats/timestamps",
     async ({ query, jobsService }) => {
       return await jobsService.getTimestamps(
-        query.period ? parseInt(query.period) : (365 / 12) * 24 * 3600
+        query.period ? parseInt(query.period) : (365 / 12) * 24 * 3600,
       );
     },
     {
@@ -112,7 +112,7 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
         summary: "Get job timestamps",
         tags: ["Jobs"],
       },
-    }
+    },
   )
   .get(
     "/count",
@@ -128,15 +128,12 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
           "Get total job count and counts per state (QUEUED, RUNNING, COMPLETED, STOPPED), with optional filtering by market, node, project, and payer",
         tags: ["Jobs"],
       },
-    }
+    },
   )
   .post(
     "/batch",
     async ({ body, jobsService }) => {
-      return await jobsService.getJobsByAddresses(
-        body.addresses,
-        body.limit ?? 100
-      );
+      return await jobsService.getJobsByAddresses(body.addresses, body.limit ?? 100);
     },
     {
       body: t.Object({
@@ -150,7 +147,7 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
           "Retrieve multiple jobs by a list of addresses (full job fields except jobDefinition and jobResult). Maximum of 100 addresses per request.",
         tags: ["Jobs"],
       },
-    }
+    },
   )
   .get(
     "/:address",
@@ -170,7 +167,7 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
         description: "Retrieve a job account by its address",
         tags: ["Jobs"],
       },
-    }
+    },
   );
 
 export default jobsRouter;

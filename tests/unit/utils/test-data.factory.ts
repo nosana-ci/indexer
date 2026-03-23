@@ -2,7 +2,7 @@
  * Test data factory utilities for indexer tests.
  * Indexer-related factories and constants only.
  */
-import { jobStateMappingReverse } from '../../src/modules/jobs/model';
+import { jobStateMappingReverse } from '../../../src/modules/jobs/model';
 
 const jobStateMapping: Record<number, string> = {
   0: 'QUEUED',
@@ -17,8 +17,6 @@ export const jobCompletedState = jobStateMappingReverse.COMPLETED;
 export const jobRunningStateString = jobStateMapping[1];
 export const marketQueueJobType = 0;
 export const marketQueueNodeType = 1;
-const jobQueueNodeTypeString = 'NODE_QUEUE';
-const marketTypePremium = 'PREMIUM';
 
 export const secondsInAnHour = 3600;
 export const secondsInTwoHours = secondsInAnHour * 2;

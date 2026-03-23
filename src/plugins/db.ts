@@ -6,4 +6,3 @@ export const db = getDb();
 export function createDbPlugin() {
   return new Elysia({ name: "db" }).decorate("db", db);
 }
-

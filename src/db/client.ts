@@ -17,17 +17,16 @@ function buildDatabaseUrlFromParts() {
   if (!host || !user || !password || !database) return undefined;
 
   return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(
-    password
+    password,
   )}@${host}:${port}/${database}`;
 }
 
 function getConnectionString() {
-  const connectionString =
-    process.env.DATABASE_URL ?? buildDatabaseUrlFromParts();
+  const connectionString = process.env.DATABASE_URL ?? buildDatabaseUrlFromParts();
 
   if (!connectionString) {
     throw new Error(
-      "Missing database credentials. Set DATABASE_URL or POSTGRES_HOST/POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_DB (and optionally POSTGRES_PORT)."
+      "Missing database credentials. Set DATABASE_URL or POSTGRES_HOST/POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_DB (and optionally POSTGRES_PORT).",
     );
   }
 
@@ -47,3 +46,10 @@ export function getDb() {
   return db;
 }
 
+export async function closePool() {
+  if (pool) {
+    await pool.end();
+    pool = undefined;
+    db = undefined;
+  }
+}

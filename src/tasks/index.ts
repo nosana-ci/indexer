@@ -1,7 +1,9 @@
-import { getDb } from '../db/client';
-import { appTasksHistory } from '../db/tables/app-tasks-history';
-import { eq } from 'drizzle-orm';
-import { populateEarningAndSpendingDB } from './populate-earnings-spending';
+import { getDb } from "../db/client";
+import { appTasksHistory } from "../db/tables/app-tasks-history";
+import { eq } from "drizzle-orm";
+import parentLogger from "../logger";
+
+const logger = parentLogger.child({ module: "startup-tasks" });
 
 /**
  * Interface for defining one-time startup tasks.
@@ -28,11 +30,9 @@ export const startupTasksRegistry: StartupTask[] = [
  * Runs all registered startup tasks that haven't been completed yet.
  * Each task is tracked in the app_tasks_history table so it only runs once.
  */
-export async function runStartupTasks(
-  tasks: StartupTask[] = startupTasksRegistry
-): Promise<void> {
+export async function runStartupTasks(tasks: StartupTask[] = startupTasksRegistry): Promise<void> {
   const db = getDb();
-  console.log('Checking for pending one-time startup tasks...');
+  logger.info("Checking for pending one-time startup tasks");
 
   for (const task of tasks) {
     try {
@@ -44,18 +44,18 @@ export async function runStartupTasks(
 
       if (existing.length > 0) continue;
 
-      console.log(`Running one-time task: ${task.description} (${task.id})...`);
+      logger.info({ taskId: task.id, description: task.description }, "Running one-time task");
       await task.run();
       await db.insert(appTasksHistory).values({ taskId: task.id });
-      console.log(`Completed one-time task: ${task.description} (${task.id})`);
+      logger.info({ taskId: task.id, description: task.description }, "Completed one-time task");
     } catch (error) {
-      console.error(
-        `Error processing one-time task ${task.id} (${task.description}):`,
-        error
+      logger.error(
+        { err: error, taskId: task.id, description: task.description },
+        "Error processing one-time task",
       );
-      console.warn(`Skipping task ${task.id} due to error.`);
+      logger.warn({ taskId: task.id }, "Skipping task due to error");
     }
   }
 
-  console.log('Finished checking one-time startup tasks.');
+  logger.info("Finished checking one-time startup tasks");
 }

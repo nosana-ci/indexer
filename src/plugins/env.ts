@@ -5,12 +5,14 @@ import { resolve } from "node:path";
 export const initEnv = () => {
   const envName = process.env.APP_ENV;
 
-  const paths = [resolve(process.cwd(), ".env")];
+  // Load most-specific first, then base defaults.
+  // Using override: false (default) so system env vars (e.g. from docker-compose) always win.
+  const paths: string[] = [];
   if (envName) paths.push(resolve(process.cwd(), `.env.${envName}`));
+  paths.push(resolve(process.cwd(), ".env"));
 
-  // Load `.env` first, then `.env.<APP_ENV|NODE_ENV>` (second overrides first).
   for (const path of paths) {
     if (!existsSync(path)) continue;
-    dotenvConfig({ path, override: true });
+    dotenvConfig({ path });
   }
 };

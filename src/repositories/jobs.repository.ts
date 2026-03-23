@@ -1,5 +1,5 @@
-import { getDb } from '../db/client';
-import { jobs, type InsertJob, type SelectJob } from '../db/tables/jobs';
+import { getDb } from "../db/client";
+import { jobs, type InsertJob, type SelectJob } from "../db/tables/jobs";
 import {
   and,
   asc,
@@ -16,7 +16,7 @@ import {
   or,
   sql,
   type SQL,
-} from 'drizzle-orm';
+} from "drizzle-orm";
 
 export default class JobsRepository {
   private get db() {
@@ -39,16 +39,11 @@ export default class JobsRepository {
     return this.db
       .select()
       .from(jobs)
-      .where(
-        and(eq(jobs.state, 0), eq(jobs.market, marketAddress))
-      )
+      .where(and(eq(jobs.state, 0), eq(jobs.market, marketAddress)))
       .execute();
   }
 
-  async findJobsToProcess(params: {
-    limit?: number;
-    minTimeEnd?: number;
-  }): Promise<SelectJob[]> {
+  async findJobsToProcess(params: { limit?: number; minTimeEnd?: number }): Promise<SelectJob[]> {
     const { limit = 500, minTimeEnd = 1727690400 } = params;
 
     return this.db
@@ -60,14 +55,10 @@ export default class JobsRepository {
             isNull(jobs.listedAt),
             isNull(jobs.jobDefinition),
             isNull(jobs.usdRewardPerHour),
-            and(
-              eq(jobs.state, 2),
-              isNull(jobs.jobResult),
-              isNotNull(jobs.ipfsResult)
-            )
+            and(eq(jobs.state, 2), isNull(jobs.jobResult), isNotNull(jobs.ipfsResult)),
           ),
-          gt(jobs.timeEnd, minTimeEnd)
-        )
+          gt(jobs.timeEnd, minTimeEnd),
+        ),
       )
       .limit(limit)
       .orderBy(asc(jobs.jobDefinition), asc(jobs.timeEnd))
@@ -86,8 +77,8 @@ export default class JobsRepository {
           or(
             lt(jobs.state, jobData.state),
             lt(jobs.timeout, jobData.timeout!),
-            and(eq(jobs.state, 2), isNull(jobs.ipfsResult))
-          )
+            and(eq(jobs.state, 2), isNull(jobs.ipfsResult)),
+          ),
         ),
       })
       .returning()
@@ -96,10 +87,7 @@ export default class JobsRepository {
     return result[0] as SelectJob;
   }
 
-  async update(
-    address: string,
-    updates: Partial<InsertJob>
-  ): Promise<SelectJob | null> {
+  async update(address: string, updates: Partial<InsertJob>): Promise<SelectJob | null> {
     const orConditions = [];
     const whereConditions = [eq(jobs.address, address)];
 
@@ -112,9 +100,7 @@ export default class JobsRepository {
       orConditions.push(lt(jobs.timeout, updates.timeout));
     }
 
-    orConditions.push(
-      and(eq(jobs.state, 2), isNull(jobs.ipfsResult))
-    );
+    orConditions.push(and(eq(jobs.state, 2), isNull(jobs.ipfsResult)));
 
     if (orConditions.length > 0) {
       const orCondition = or(...orConditions);
@@ -133,22 +119,12 @@ export default class JobsRepository {
     return result.length > 0 ? result[0] : null;
   }
 
-  async simpleUpdate(
-    address: string,
-    updates: Partial<InsertJob>
-  ): Promise<void> {
-    await this.db
-      .update(jobs)
-      .set(updates)
-      .where(eq(jobs.address, address))
-      .execute();
+  async simpleUpdate(address: string, updates: Partial<InsertJob>): Promise<void> {
+    await this.db.update(jobs).set(updates).where(eq(jobs.address, address)).execute();
   }
 
   async delete(address: string): Promise<void> {
-    await this.db
-      .delete(jobs)
-      .where(eq(jobs.address, address))
-      .execute();
+    await this.db.delete(jobs).where(eq(jobs.address, address)).execute();
   }
 
   // ── Query methods (used by the API service) ─────────────────────────
@@ -273,18 +249,11 @@ export default class JobsRepository {
       .execute();
   }
 
-  async findLongRunningJobs(
-    currentTimestamp: number,
-    market?: string,
-    payer?: string
-  ) {
+  async findLongRunningJobs(currentTimestamp: number, market?: string, payer?: string) {
     const conditions = [
       eq(jobs.timeEnd, 0),
       ne(jobs.timeStart, 0),
-      lt(
-        sql`COALESCE(${jobs.timeStart}, 0) + COALESCE(${jobs.timeout}, 0)`,
-        currentTimestamp
-      ),
+      lt(sql`COALESCE(${jobs.timeStart}, 0) + COALESCE(${jobs.timeout}, 0)`, currentTimestamp),
     ];
 
     if (market) conditions.push(eq(jobs.market, market));
@@ -307,19 +276,16 @@ export default class JobsRepository {
     blockchainAddresses: string[],
     completedWithResultOlderThan: number,
     completedOlderThan: number,
-    limit = 150
+    limit = 150,
   ): Promise<SelectJob[]> {
     return this.db.query.jobs.findMany({
       where: and(
         or(
-          and(
-            lt(jobs.timeEnd, completedWithResultOlderThan),
-            isNotNull(jobs.ipfsResult)
-          ),
-          lt(jobs.timeEnd, completedOlderThan)
+          and(lt(jobs.timeEnd, completedWithResultOlderThan), isNotNull(jobs.ipfsResult)),
+          lt(jobs.timeEnd, completedOlderThan),
         ),
         eq(jobs.state, 2),
-        inArray(jobs.address, blockchainAddresses)
+        inArray(jobs.address, blockchainAddresses),
       ),
       limit,
     });
@@ -327,10 +293,7 @@ export default class JobsRepository {
 
   async findTimeStartsSince(sinceUnix: number) {
     return this.db.query.jobs.findMany({
-      where: and(
-        gt(jobs.timeStart, 0),
-        gt(jobs.timeStart, sinceUnix)
-      ),
+      where: and(gt(jobs.timeStart, 0), gt(jobs.timeStart, sinceUnix)),
       columns: {
         timeStart: true,
       },
@@ -340,7 +303,7 @@ export default class JobsRepository {
   // ── Stats aggregation queries ───────────────────────────────────────
 
   createStatsBaseCte(conditions: SQL[]) {
-    return this.withAlias('jobs_base').as(
+    return this.withAlias("jobs_base").as(
       this.db
         .select({
           project: jobs.project,
@@ -352,26 +315,23 @@ export default class JobsRepository {
           usdRewardPerHour: jobs.usdRewardPerHour,
           effectiveRuntimeSeconds:
             sql<number>`LEAST((${jobs.timeEnd} - ${jobs.timeStart}), ${jobs.timeout})`.as(
-              'effectiveRuntimeSeconds'
+              "effectiveRuntimeSeconds",
             ),
         })
         .from(jobs)
-        .where(and(...conditions))
+        .where(and(...conditions)),
     );
   }
 
-  createStatsBucketedCte(
-    baseCte: any,
-    timeSeriesInterval: string,
-    groupByMarket: boolean
-  ) {
-    return this.withAlias('jobs_bucketed').as(
+  /* eslint-disable @typescript-eslint/no-explicit-any -- Drizzle CTE types are complex inferred types */
+  createStatsBucketedCte(baseCte: any, timeSeriesInterval: string, _groupByMarket: boolean) {
+    return this.withAlias("jobs_bucketed").as(
       this.db
         .with(baseCte)
         .select({
           bucket:
             sql<string>`date_trunc(${timeSeriesInterval}, to_timestamp(${baseCte.timeStart}))`.as(
-              'bucket'
+              "bucket",
             ),
           project: baseCte.project,
           market: baseCte.market,
@@ -379,7 +339,7 @@ export default class JobsRepository {
           price: baseCte.price,
           usdRewardPerHour: baseCte.usdRewardPerHour,
         })
-        .from(baseCte)
+        .from(baseCte),
     );
   }
 
@@ -387,7 +347,7 @@ export default class JobsRepository {
     baseCte: any,
     bucketedCte: any,
     select: Record<string, any>,
-    groupBy: any[]
+    groupBy: any[],
   ) {
     return this.db
       .with(baseCte, bucketedCte)
@@ -451,4 +411,5 @@ export default class JobsRepository {
       .from(baseCte)
       .execute();
   }
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 }
