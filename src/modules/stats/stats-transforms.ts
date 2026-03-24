@@ -202,3 +202,13 @@ export function computeSameDayComparison(
     ...(pctChangeSoFar !== null && { pctChangeSoFar }),
   };
 }
+
+export function toNumberOrNull(value: unknown): number | null {
+  if (value == null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+export function toIntegerOrNull(value: unknown): number | null {
+  const parsed = toNumberOrNull(value);
+  return parsed !== null ? Math.round(parsed) : null;
+}
