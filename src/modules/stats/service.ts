@@ -14,6 +14,8 @@ import {
   computeForecast,
   computeMonthComparison,
   computeSameDayComparison,
+  toNumberOrNull,
+  toIntegerOrNull,
 } from "./stats-transforms";
 
 const logger = parentLogger.child({ module: "stats" });
@@ -60,32 +62,30 @@ export default class StatsService {
       const nosStats = await this.fetchNosStats();
 
       if (stakeStats.nosStaked === null) {
-        stakeStats.nosStaked = Number(lastStats?.nosStaked);
+        stakeStats.nosStaked = toNumberOrNull(lastStats?.nosStaked);
       }
       if (stakeStats.xNosStaked === null) {
-        stakeStats.xNosStaked = Number(lastStats?.totalXNosStaked);
+        stakeStats.xNosStaked = toNumberOrNull(lastStats?.totalXNosStaked);
       }
       if (stakeStats.stakers === null) {
-        stakeStats.stakers = Number(lastStats?.stakers);
+        stakeStats.stakers = toNumberOrNull(lastStats?.stakers);
       }
 
       await this.statsRepo.insertStats({
         usdValueStaked:
-          nosStats.price && stakeStats?.nosStaked
+          nosStats.price != null && stakeStats.nosStaked != null
             ? Math.round(stakeStats.nosStaked * nosStats.price)
             : null,
-        nosStaked: stakeStats?.nosStaked ? Math.round(stakeStats.nosStaked) : null,
-        totalXNosStaked: stakeStats?.xNosStaked ? Math.round(stakeStats.xNosStaked) : null,
-        stakers: stakeStats ? Number(stakeStats.stakers) : null,
-        price: nosStats.price ? Number(nosStats.price) : null,
-        marketCap: nosStats.marketCap ? Number(nosStats.marketCap) : null,
-        dailyVolume: nosStats.dailyVolume ? Number(nosStats.dailyVolume) : null,
-        totalSupply: nosStats.totalSupply ? Number(nosStats.totalSupply) : null,
-        fullyDilutedMarketCap: nosStats.fullyDilutedMarketCap
-          ? Number(nosStats.fullyDilutedMarketCap)
-          : null,
-        circulatingSupply: nosStats.circulatingSupply ? Number(nosStats.circulatingSupply) : null,
-        dailyPriceChange: nosStats.dailyPriceChange ? Number(nosStats.dailyPriceChange) : null,
+        nosStaked: toIntegerOrNull(stakeStats.nosStaked),
+        totalXNosStaked: toIntegerOrNull(stakeStats.xNosStaked),
+        stakers: toIntegerOrNull(stakeStats.stakers),
+        price: toNumberOrNull(nosStats.price),
+        marketCap: toIntegerOrNull(nosStats.marketCap),
+        dailyVolume: toIntegerOrNull(nosStats.dailyVolume),
+        totalSupply: toIntegerOrNull(nosStats.totalSupply),
+        fullyDilutedMarketCap: toIntegerOrNull(nosStats.fullyDilutedMarketCap),
+        circulatingSupply: toIntegerOrNull(nosStats.circulatingSupply),
+        dailyPriceChange: toNumberOrNull(nosStats.dailyPriceChange),
       });
     } catch (error) {
       logger.error({ err: error }, "Failed to refresh main stats");
