@@ -65,6 +65,10 @@ scenario test:
     DOCKER_CERT_PATH: ""
     POSTGRES_HOST: docker
     POSTGRES_PORT: "5434"
+    BACKEND_URL: http://docker:3003
+    CRON_URL: http://docker:3005
+    SOLANA_RPC: http://docker:8899
+    SOLANA_WS: ws://docker:8900
   script:
     - export DOCKER_TLS_CERTDIR=
     - export DOCKER_TLS_VERIFY=

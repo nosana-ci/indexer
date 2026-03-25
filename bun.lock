@@ -21,7 +21,7 @@
       },
       "devDependencies": {
         "@eslint/js": "10.0.1",
-        "@nosana/scenario": "^2.2.4",
+        "@nosana/scenario": "^2.2.5",
         "@types/bs58": "^4.0.4",
         "@types/pg": "^8.16.0",
         "@typescript-eslint/eslint-plugin": "8.57.0",
@@ -178,7 +178,7 @@
 
     "@nosana/merkle-distributor-program": ["@nosana/merkle-distributor-program@2.2.0", "", { "dependencies": { "@solana/kit": "5.4.0" } }, "sha512-Sz7RFFFM6rVMrFxKjvH31150EUfX8BL1Ru4sDelLM0ewjIMqKhmXEo6bbsnkzG0Nvzco++3fAC1d/VbEw8s/gA=="],
 
-    "@nosana/scenario": ["@nosana/scenario@2.2.4", "", { "dependencies": { "@nosana/kit": "2.2.4", "@nosana/localnet": "2.2.4", "@solana-program/token": "0.9.0", "@solana/kit": "5.4.0" }, "peerDependencies": { "vitest": ">=2.0.0" }, "optionalPeers": ["vitest"] }, "sha512-IlgsZNpE8uDZVPgPe3YZxkDFG2OyaROLUFnUcDTnH8DZDJgn4/bjuMKrkcrt8QtazwSt25sfCMD6Ev8oQF+jDg=="],
+    "@nosana/scenario": ["@nosana/scenario@2.2.5", "", { "dependencies": { "@nosana/kit": "2.2.4", "@nosana/localnet": "2.2.4", "@solana-program/token": "0.9.0", "@solana/kit": "5.4.0" }, "peerDependencies": { "vitest": ">=2.0.0" }, "optionalPeers": ["vitest"] }, "sha512-AdUGPmjjAGnNzi1qcJ+yJteLhC1e+c0lU9teqjY8DkaJFnVbfTtxhSid9WmoExz9uI57ouV+ZSv/XcFhbdBceA=="],
 
     "@nosana/stake-program": ["@nosana/stake-program@2.2.0", "", { "dependencies": { "@solana/kit": "5.4.0" } }, "sha512-cKkACC7nB1zB0Vogc2E6woBPvzhceywvxKdnX65MCtuv9xQk2O3Nba6bf+ocY3HwnQPCAmaakj6AFCo3rrXXZA=="],
 

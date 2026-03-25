@@ -7,19 +7,12 @@ import { createFlow } from "../utils/index.js";
 
 const DOCKER_COMPOSE_DIR = `${process.cwd()}/docker`;
 
-const LOCALNET_ENV = {
-  SOLANA_NETWORK: "localnet",
-  SOLANA_RPC: "http://host.docker.internal:8899",
-  SOLANA_WS: "ws://host.docker.internal:8900",
-};
-
 function dc(cmd: string): string {
   return execSync(`docker compose ${cmd}`, {
     cwd: DOCKER_COMPOSE_DIR,
     encoding: "utf-8",
     timeout: 60_000,
     stdio: ["pipe", "pipe", "pipe"],
-    env: { ...process.env, ...LOCALNET_ENV },
   }).trim();
 }
 

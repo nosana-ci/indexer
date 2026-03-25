@@ -2,9 +2,9 @@ name: blockchain-indexer
 
 x-common-env: &common-env
   APP_ENV: development
-  SOLANA_NETWORK: ${SOLANA_NETWORK:-devnet}
-  SOLANA_RPC: ${SOLANA_RPC:-}
-  SOLANA_WS: ${SOLANA_WS:-}
+  SOLANA_NETWORK: ${SOLANA_NETWORK:-localnet}
+  SOLANA_RPC: ${SOLANA_RPC:-http://localnet:8899}
+  SOLANA_WS: ${SOLANA_WS:-ws://localnet:8900}
   POSTGRES_USER: postgres
   POSTGRES_PASSWORD: postgres
   POSTGRES_DB: nosana_indexer
@@ -20,10 +20,11 @@ x-common-service: &common-service
   depends_on:
     db:
       condition: service_healthy
+    localnet:
+      condition: service_healthy
   links:
     - db
-  extra_hosts:
-    - "host.docker.internal:host-gateway"
+    - localnet
   networks:
     - deployments_network
 
@@ -65,6 +66,21 @@ services:
       <<: *common-env
       APP_MODE: all
       PORT: 3006
+
+  localnet:
+    image: nosana/localnet:latest
+    ports:
+      - 8899:8899
+      - 8900:8900
+    healthcheck:
+      test: ['CMD', 'solana', 'cluster-version', '--url', 'http://127.0.0.1:8899']
+      interval: 2s
+      timeout: 5s
+      retries: 20
+    networks:
+      deployments_network:
+        aliases:
+          - localnet
 
   db:
     image: postgres:18

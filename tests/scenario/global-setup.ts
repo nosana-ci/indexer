@@ -1,5 +1,4 @@
 import { execSync } from "child_process";
-import { startLocalnet, stopLocalnet } from "@nosana/scenario";
 
 const DOCKER_COMPOSE_DIR = `${process.cwd()}/docker`;
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:3003";
@@ -8,19 +7,12 @@ const DOCKER_COMPOSE_TIMEOUT_MS = 60_000;
 const HEALTH_TIMEOUT_MS = 120_000;
 const HEALTH_POLL_INTERVAL_MS = 2_000;
 
-const LOCALNET_ENV = {
-  SOLANA_NETWORK: "localnet",
-  SOLANA_RPC: "http://host.docker.internal:8899",
-  SOLANA_WS: "ws://host.docker.internal:8900",
-};
-
 function dc(cmd: string, timeoutMs = DOCKER_COMPOSE_TIMEOUT_MS): string {
   return execSync(`docker compose ${cmd}`, {
     cwd: DOCKER_COMPOSE_DIR,
     encoding: "utf-8",
     timeout: timeoutMs,
     stdio: ["pipe", "pipe", "pipe"],
-    env: { ...process.env, ...LOCALNET_ENV },
   }).trim();
 }
 
@@ -80,11 +72,6 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     // Already exists — ignore
   }
 
-  // Start the Nosana localnet validator (Solana)
-  console.log("Starting Nosana localnet...");
-  startLocalnet({ verbose: false });
-  console.log("Nosana localnet started");
-
   if (wasRunning) {
     console.log("Dev environment already running — rebuilding to pick up changes");
     dc("up -d --build --wait");
@@ -97,9 +84,6 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   console.log("All services healthy");
 
   return async () => {
-    console.log("Stopping Nosana localnet...");
-    stopLocalnet();
-
     if (!wasRunning) {
       console.log("Stopping dev environment (tests started it)");
       dc("down");
