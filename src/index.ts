@@ -35,6 +35,10 @@ if (shouldRunIndexer(mode) || shouldRunCron(mode)) {
     config.solana!.rpcEndpoint = process.env.SOLANA_RPC;
   }
 
+  if (process.env.SOLANA_WS) {
+    config.solana!.wsEndpoint = process.env.SOLANA_WS;
+  }
+
   nosanaClient = createNosanaClient(
     (process.env.SOLANA_NETWORK || "mainnet") as NosanaNetwork,
     config,

@@ -39,23 +39,22 @@ createFlow("Migration advisory lock", (step) => {
   });
 
   step("releases the lock even when the callback throws", async () => {
-      const callbackError = new Error("callback failure");
+    const callbackError = new Error("callback failure");
 
-      await expect(
-        withAdvisoryLock(pool, async () => {
-          throw callbackError;
-        }),
-      ).rejects.toThrow("callback failure");
+    await expect(
+      withAdvisoryLock(pool, async () => {
+        throw callbackError;
+      }),
+    ).rejects.toThrow("callback failure");
 
-      // Lock should be available immediately after the error
-      let acquired = false;
-      await withAdvisoryLock(pool, async () => {
-        acquired = true;
-      });
+    // Lock should be available immediately after the error
+    let acquired = false;
+    await withAdvisoryLock(pool, async () => {
+      acquired = true;
+    });
 
-      expect(acquired).toBe(true);
-    },
-  );
+    expect(acquired).toBe(true);
+  });
 
   step("allows sequential calls without deadlocking", async () => {
     let firstCompleted = false;

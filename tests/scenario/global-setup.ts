@@ -28,8 +28,7 @@ function isStackRunning(): boolean {
       ["api", "indexer", "cron"].includes(s.Service),
     );
     return (
-      appServices.length === 3 &&
-      appServices.every((s: { State: string }) => s.State === "running")
+      appServices.length === 3 && appServices.every((s: { State: string }) => s.State === "running")
     );
   } catch {
     return false;
@@ -64,10 +63,17 @@ async function waitForHealthy(): Promise<void> {
 export default async function globalSetup(): Promise<() => Promise<void>> {
   const wasRunning = isStackRunning();
 
+  // Ensure the external Docker network exists
+  try {
+    execSync("docker network create deployments_network", {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch {
+    // Already exists — ignore
+  }
+
   if (wasRunning) {
-    console.log(
-      "Dev environment already running — rebuilding to pick up changes",
-    );
+    console.log("Dev environment already running — rebuilding to pick up changes");
     dc("up -d --build --wait");
   } else {
     console.log("Dev environment not running — starting it");

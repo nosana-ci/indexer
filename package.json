@@ -22,7 +22,7 @@
     "@elysiajs/cors": "^1.4.1",
     "@elysiajs/cron": "^1.4.1",
     "@elysiajs/swagger": "1.3.1",
-    "@nosana/kit": "^2.1.7",
+    "@nosana/kit": "^2.2.4",
     "@sinclair/typebox": "^0.34.48",
     "dayjs": "^1.11.19",
     "dotenv": "^17.2.3",
@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@nosana/scenario": "^2.2.5",
     "@types/bs58": "^4.0.4",
     "@types/pg": "^8.16.0",
     "@typescript-eslint/eslint-plugin": "8.57.0",
