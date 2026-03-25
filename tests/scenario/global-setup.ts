@@ -9,7 +9,7 @@ const HEALTH_TIMEOUT_MS = 120_000;
 const HEALTH_POLL_INTERVAL_MS = 2_000;
 
 const LOCALNET_ENV = {
-  SOLANA_NETWORK: "devnet",
+  SOLANA_NETWORK: "localnet",
   SOLANA_RPC: "http://host.docker.internal:8899",
   SOLANA_WS: "ws://host.docker.internal:8900",
 };
@@ -36,8 +36,7 @@ function isStackRunning(): boolean {
       ["api", "indexer", "cron"].includes(s.Service),
     );
     return (
-      appServices.length === 3 &&
-      appServices.every((s: { State: string }) => s.State === "running")
+      appServices.length === 3 && appServices.every((s: { State: string }) => s.State === "running")
     );
   } catch {
     return false;
@@ -87,9 +86,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   console.log("Nosana localnet started");
 
   if (wasRunning) {
-    console.log(
-      "Dev environment already running — rebuilding to pick up changes",
-    );
+    console.log("Dev environment already running — rebuilding to pick up changes");
     dc("up -d --build --wait");
   } else {
     console.log("Dev environment not running — starting it");

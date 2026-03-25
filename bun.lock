@@ -8,7 +8,7 @@
         "@elysiajs/cors": "^1.4.1",
         "@elysiajs/cron": "^1.4.1",
         "@elysiajs/swagger": "1.3.1",
-        "@nosana/kit": "^2.2.0",
+        "@nosana/kit": "^2.2.4",
         "@sinclair/typebox": "^0.34.48",
         "dayjs": "^1.11.19",
         "dotenv": "^17.2.3",
@@ -21,7 +21,7 @@
       },
       "devDependencies": {
         "@eslint/js": "10.0.1",
-        "@nosana/scenario": "^2.2.1",
+        "@nosana/scenario": "^2.2.4",
         "@types/bs58": "^4.0.4",
         "@types/pg": "^8.16.0",
         "@typescript-eslint/eslint-plugin": "8.57.0",
@@ -160,27 +160,27 @@
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@0.2.12", "", { "dependencies": { "@emnapi/core": "^1.4.3", "@emnapi/runtime": "^1.4.3", "@tybys/wasm-util": "^0.10.0" } }, "sha512-ZVWUcfwY4E/yPitQJl481FjFo3K22D6qF0DuFH6Y/nbnE11GY5uguDxZMGXPQ8WQ0128MXQD7TnfHyK4oWoIJQ=="],
 
-    "@nosana/api": ["@nosana/api@2.2.0", "", { "dependencies": { "@nosana/types": "2.2.0", "openapi-fetch": "^0.14.0" } }, "sha512-cJ78YBqNiTFuZ/eEqVlCLz77hokaExjt2v7/QAAs6ZBKtNlNCC5ZdQhm8ou1g6skHpEECIhbOlFKmFg2KCpgsg=="],
+    "@nosana/api": ["@nosana/api@2.2.2", "", { "dependencies": { "@nosana/types": "2.2.2", "openapi-fetch": "^0.14.0" } }, "sha512-Zbsz6ixARLQU2UsTtA2W5V0CFr/JA+tsbb5Qm2hxvkf+sHzz9bkrJlsCAN3eGAWEMiM+c91sEvq4zKGmDhTeZQ=="],
 
-    "@nosana/authorization": ["@nosana/authorization@2.2.0", "", { "dependencies": { "bs58": "^5.0.0", "buffer": "^6.0.3", "tweetnacl": "^1.0.3", "tweetnacl-util": "^0.15.1" } }, "sha512-c2k2EuQHsvxX95n3qu0gfCMvPRFs6xQ9Rq7k3EHj5X7Fn+ubU2Tues6e/Oufeq1mFpMGyNZl72p6Hv0pK+f9jQ=="],
+    "@nosana/authorization": ["@nosana/authorization@2.2.4", "", { "dependencies": { "bs58": "^5.0.0", "buffer": "^6.0.3", "tweetnacl": "^1.0.3", "tweetnacl-util": "^0.15.1" } }, "sha512-0Oaji4vhmrKLV0VUX1m+QgqpzbIa8NBOW6FcQ8efq+a2FYbgAPYl5guRJlnZHg4pAUE76LfcHu1sLbgtY8wHeA=="],
 
-    "@nosana/endpoints": ["@nosana/endpoints@2.2.0", "", { "dependencies": { "@nosana/types": "2.2.0", "bs58": "^5.0.0", "tweetnacl": "^1.0.3" } }, "sha512-dCWNVGgaSLU2mxuOb34y/ktJ3Ewri1qTxsj0sV4Ri7MbP1FBZfvH0JkdrPLUwt5ncALNWPqrQo3BH3a2jpyZYA=="],
+    "@nosana/endpoints": ["@nosana/endpoints@2.2.2", "", { "dependencies": { "@nosana/types": "2.2.2", "bs58": "^5.0.0", "tweetnacl": "^1.0.3" } }, "sha512-iWFEXhU+i6u0rNV4VtbR0z7GhGi794/koFFOx1AC+op7pIQwiHXmjl2MEuCHUj0zrkaDvx8fIEVG4iXWlIjILQ=="],
 
     "@nosana/ipfs": ["@nosana/ipfs@2.2.0", "", { "dependencies": { "bs58": "^5.0.0" } }, "sha512-gXCyALSiudfH1Azu2meq9A79sQmKw25vABm4p88KGIJgEjP40dKvXuqIWpjiA6nPqXf8OKTvQXP0ZvmIhWJD+w=="],
 
     "@nosana/jobs-program": ["@nosana/jobs-program@2.2.0", "", { "dependencies": { "@solana/kit": "5.4.0" } }, "sha512-oMbPG99J4C0cdSFxEYDiDGjg1YeCmqdEN9Wp1QSqxs5Xk4RJIVDgjO1YaixM9MNnwvCqVqbdcOhStEc1OBtZVg=="],
 
-    "@nosana/kit": ["@nosana/kit@2.2.0", "", { "dependencies": { "@nosana/api": "2.2.0", "@nosana/authorization": "2.2.0", "@nosana/endpoints": "2.2.0", "@nosana/ipfs": "2.2.0", "@nosana/jobs-program": "2.2.0", "@nosana/merkle-distributor-program": "2.2.0", "@nosana/stake-program": "2.2.0", "@nosana/types": "2.2.0", "@solana-program/compute-budget": "0.12.0", "@solana-program/system": "0.10.0", "@solana-program/token": "0.9.0", "@solana/kit": "5.4.0", "bs58": "6.0.0" } }, "sha512-jpTfHli4AgaAG0XtkQdRva5M8MxzhU/uuKWPNAN/LyX32toM76R1A1kGMZt6HDH6wcdrM9qwqaLKMfmbrUmVKA=="],
+    "@nosana/kit": ["@nosana/kit@2.2.4", "", { "dependencies": { "@nosana/api": "2.2.2", "@nosana/authorization": "2.2.4", "@nosana/endpoints": "2.2.2", "@nosana/ipfs": "2.2.0", "@nosana/jobs-program": "2.2.0", "@nosana/merkle-distributor-program": "2.2.0", "@nosana/stake-program": "2.2.0", "@nosana/types": "2.2.2", "@solana-program/compute-budget": "0.12.0", "@solana-program/system": "0.10.0", "@solana-program/token": "0.9.0", "@solana/kit": "5.4.0", "bs58": "6.0.0" } }, "sha512-tPjKyeEn853GIVKhTBQwuM7NaXugYHeo51kvF9mpHyHj8JpWU3oTFDaWkq7Ex7Vi0YHqeWIO+xesdJmOTr1ENw=="],
 
-    "@nosana/localnet": ["@nosana/localnet@2.2.0", "", { "peerDependencies": { "vitest": ">=2.0.0" }, "optionalPeers": ["vitest"] }, "sha512-ofB56/AhUuzUvtaVmV5Mtz09izB3FVLo/vTFdeOgiEJ1DGGPWKUsRN1eWgmDRmq0bv7esW22Y4Ctu4X4RYEsgw=="],
+    "@nosana/localnet": ["@nosana/localnet@2.2.4", "", { "peerDependencies": { "vitest": ">=2.0.0" }, "optionalPeers": ["vitest"] }, "sha512-GkFN5yndxZ9EGj12yiuVe379yYx6Ca7pDuEvfsu5Egd8HoQ4tfS3wL9OvmoaLEzT3sQ1S475IkNsXypQ4V+fNA=="],
 
     "@nosana/merkle-distributor-program": ["@nosana/merkle-distributor-program@2.2.0", "", { "dependencies": { "@solana/kit": "5.4.0" } }, "sha512-Sz7RFFFM6rVMrFxKjvH31150EUfX8BL1Ru4sDelLM0ewjIMqKhmXEo6bbsnkzG0Nvzco++3fAC1d/VbEw8s/gA=="],
 
-    "@nosana/scenario": ["@nosana/scenario@2.2.1", "", { "dependencies": { "@nosana/kit": "2.2.0", "@nosana/localnet": "2.2.0", "@solana-program/token": "0.9.0", "@solana/kit": "5.4.0" }, "peerDependencies": { "vitest": ">=2.0.0" }, "optionalPeers": ["vitest"] }, "sha512-c5O0dhWcTDbqZfkOoeTLY4p3/E0C7eozfqRIu/EAejJu4bEAbPJSBrhcIIFnl2BBaWDCIxRVkUe0npETppKing=="],
+    "@nosana/scenario": ["@nosana/scenario@2.2.4", "", { "dependencies": { "@nosana/kit": "2.2.4", "@nosana/localnet": "2.2.4", "@solana-program/token": "0.9.0", "@solana/kit": "5.4.0" }, "peerDependencies": { "vitest": ">=2.0.0" }, "optionalPeers": ["vitest"] }, "sha512-IlgsZNpE8uDZVPgPe3YZxkDFG2OyaROLUFnUcDTnH8DZDJgn4/bjuMKrkcrt8QtazwSt25sfCMD6Ev8oQF+jDg=="],
 
     "@nosana/stake-program": ["@nosana/stake-program@2.2.0", "", { "dependencies": { "@solana/kit": "5.4.0" } }, "sha512-cKkACC7nB1zB0Vogc2E6woBPvzhceywvxKdnX65MCtuv9xQk2O3Nba6bf+ocY3HwnQPCAmaakj6AFCo3rrXXZA=="],
 
-    "@nosana/types": ["@nosana/types@2.2.0", "", { "dependencies": { "typia": "^10.0.2" } }, "sha512-RVM4yeLgO3dzm7k36eT1s9Aba190SRD+EPECPVScitX+rxIlLnW01sI6dRZ7wIkJN+7Qt4A+46RwtJnksU3tsA=="],
+    "@nosana/types": ["@nosana/types@2.2.2", "", { "dependencies": { "typia": "^10.0.2" } }, "sha512-PSFXPXUhftCIRL7GuyisrZfQyutTsWaGkEc0qTVPUs2DA0hpcKFkV6NpiVzKypEdBwoa5d7IuKTYhnzsISZXvQ=="],
 
     "@package-json/types": ["@package-json/types@0.0.12", "", {}, "sha512-uu43FGU34B5VM9mCNjXCwLaGHYjXdNincqKLaraaCW+7S2+SmiBg1Nv8bPnmschrIfZmfKNY9f3fC376MRrObw=="],
 
