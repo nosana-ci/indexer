@@ -44,6 +44,7 @@ export default () => {
       setupFiles: ["./tests/scenario/setup.ts"],
       env: {
         BACKEND_URL: process.env.BACKEND_URL ?? "http://localhost:3003",
+        CRON_URL: process.env.CRON_URL ?? "http://localhost:3005",
         SOLANA_NETWORK: process.env.SOLANA_NETWORK ?? "mainnet",
         NOSANA_NETWORK: "localnet",
         SOLANA_RPC: process.env.SOLANA_RPC ?? "http://localhost:8899",

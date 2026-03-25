@@ -6,6 +6,8 @@ import { backendUrl } from "../setup.js";
 import { createFlow } from "../utils/index.js";
 
 const DOCKER_COMPOSE_DIR = `${process.cwd()}/docker`;
+const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:3003";
+const CRON_URL = process.env.CRON_URL ?? "http://localhost:3005";
 
 function dc(cmd: string): string {
   return execSync(`docker compose ${cmd}`, {
@@ -56,7 +58,7 @@ createFlow("GPA recovery: indexer catches missed jobs on restart", (step) => {
 
   step("restart the indexer container (runs jobsGPA on startup)", async () => {
     dc("start indexer");
-    await waitForService(`http://localhost:3004/health`);
+    await waitForService(`${BACKEND_URL.replace(/:\d+/, ':3004')}/health`);
   });
 
   step("job appears after GPA recovery", async () => {
@@ -79,6 +81,6 @@ createFlow("GPA recovery: indexer catches missed jobs on restart", (step) => {
 
   step("restart the cron container to restore normal state", async () => {
     dc("start cron");
-    await waitForService("http://localhost:3005/health");
+    await waitForService(`${CRON_URL}/health`);
   });
 });

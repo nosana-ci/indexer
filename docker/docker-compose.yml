@@ -3,8 +3,8 @@ name: blockchain-indexer
 x-common-env: &common-env
   APP_ENV: development
   SOLANA_NETWORK: ${SOLANA_NETWORK:-localnet}
-  SOLANA_RPC: ${SOLANA_RPC:-http://localnet:8899}
-  SOLANA_WS: ${SOLANA_WS:-ws://localnet:8900}
+  SOLANA_RPC: ${COMPOSE_SOLANA_RPC:-http://localnet:8899}
+  SOLANA_WS: ${COMPOSE_SOLANA_WS:-ws://localnet:8900}
   POSTGRES_USER: postgres
   POSTGRES_PASSWORD: postgres
   POSTGRES_DB: nosana_indexer

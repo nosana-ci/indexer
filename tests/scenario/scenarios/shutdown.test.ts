@@ -5,7 +5,7 @@ import { createFlow } from '../utils/index.js';
 
 const DOCKER_COMPOSE_DIR = `${process.cwd()}/docker`;
 const CRON_SERVICE = 'cron';
-const CRON_URL = 'http://localhost:3005';
+const CRON_URL = process.env.CRON_URL ?? 'http://localhost:3005';
 
 function dc(cmd: string): string {
   return execSync(`docker compose ${cmd}`, {
