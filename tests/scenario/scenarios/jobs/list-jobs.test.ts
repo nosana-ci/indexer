@@ -6,12 +6,11 @@ import { createFlow } from "../../utils/index.js";
 
 createFlow("List jobs", (step) => {
   let marketAddress: Address;
-  let jobAddress1: Address;
   let jobAddress2: Address;
 
   step("create a market and list two jobs on-chain", async () => {
     marketAddress = await createMarket();
-    jobAddress1 = await listJob({ market: marketAddress });
+    await listJob({ market: marketAddress });
     jobAddress2 = await listJob({ market: marketAddress });
   });
 
