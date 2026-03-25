@@ -46,9 +46,6 @@ export default () => {
         BACKEND_URL: process.env.BACKEND_URL ?? "http://localhost:3003",
         SOLANA_NETWORK: process.env.SOLANA_NETWORK ?? "mainnet",
         NOSANA_NETWORK: "localnet",
-        POSTGRES_HOST: process.env.DOCKER_HOST
-          ? new URL(process.env.DOCKER_HOST).hostname
-          : "localhost",
       },
     },
   });

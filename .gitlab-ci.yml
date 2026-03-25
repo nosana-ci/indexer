@@ -63,6 +63,7 @@ scenario test:
     DOCKER_TLS_CERTDIR: ""
     DOCKER_TLS_VERIFY: "0"
     DOCKER_CERT_PATH: ""
+    POSTGRES_HOST: docker
   script:
     - export DOCKER_TLS_CERTDIR=
     - export DOCKER_TLS_VERIFY=
