@@ -4,7 +4,7 @@ include:
 
 variables:
   CONTAINER_PLATFORMS: linux/amd64
-  DOCKERFILE_DIR: .
+  DOCKERFILE_DIR: docker
   RUN_AUTO_BUMP: ok
   AUTO_BUMP_REPO: nosana-ci/apps/platform/k8s
   AUTO_BUMP_FILE: helm-blockchain-indexer.tf
