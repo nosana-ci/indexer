@@ -1,0 +1,5 @@
+npx lint-staged
+npm run format:check
+bun run lint
+bun run typecheck
+bun run test

@@ -1,26 +1,39 @@
 import { migrate } from "drizzle-orm/node-postgres/migrator";
+import type { Pool } from "pg";
 
-import { db } from "../plugins/db";
+import { getDb, getPool } from "../db/client";
 import logger from "../logger";
 
-export async function runMigrations(retries = 5, delayMs = 1000) {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      await migrate(db, {
-        migrationsFolder: "./drizzle",
-      });
-      return;
-    } catch (error: unknown) {
-      // Concurrent CREATE SCHEMA IF NOT EXISTS can race across containers
-      const isDuplicate =
-        error instanceof Error && "code" in error && (error as { code: string }).code === "23505";
+const LOCK_KEY_1 = 123456789;
+const LOCK_KEY_2 = 987654321;
+const LOCK_TIMEOUT_MS = 60_000;
 
-      if (isDuplicate && attempt < retries) {
-        logger.warn({ attempt, retries }, "Migration hit duplicate key race condition, retrying");
-        await new Promise((r) => setTimeout(r, delayMs));
-        continue;
-      }
-      throw error;
+export async function withAdvisoryLock(pool: Pool, callback: () => Promise<void>): Promise<void> {
+  const client = await pool.connect();
+
+  try {
+    logger.info("Acquiring migration advisory lock");
+    await client.query(`SET statement_timeout = '${LOCK_TIMEOUT_MS}ms'`);
+    await client.query("SELECT pg_advisory_lock($1, $2)", [LOCK_KEY_1, LOCK_KEY_2]);
+    await client.query("SET statement_timeout = '0'");
+    logger.info("Migration advisory lock acquired");
+
+    await callback();
+  } finally {
+    try {
+      await client.query("SELECT pg_advisory_unlock($1, $2)", [LOCK_KEY_1, LOCK_KEY_2]);
+      logger.debug("Migration advisory lock released");
+    } catch (unlockError) {
+      logger.warn({ err: unlockError }, "Failed to release migration advisory lock");
     }
+    client.release();
   }
+}
+
+export async function runMigrations() {
+  await withAdvisoryLock(getPool(), async () => {
+    const db = getDb();
+    await migrate(db, { migrationsFolder: "./drizzle" });
+    logger.info("Migrations completed successfully");
+  });
 }
