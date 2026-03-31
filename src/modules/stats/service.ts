@@ -29,6 +29,13 @@ export default class StatsService {
     this.statsRepo = new StatsRepository();
   }
 
+  private requireClient(): NosanaClient {
+    if (!this.nosanaClient) {
+      throw new Error("NosanaClient is required for this operation");
+    }
+    return this.nosanaClient;
+  }
+
   async getLatestStats() {
     const statsResult = await this.statsRepo.getLatestStats();
 
@@ -47,9 +54,7 @@ export default class StatsService {
   }
 
   async refreshStats() {
-    if (!this.nosanaClient) {
-      throw new Error("NosanaClient is required for refreshStats");
-    }
+    this.requireClient();
     try {
       let stakeStats: {
         nosStaked?: number | null;
@@ -97,11 +102,9 @@ export default class StatsService {
     nosStaked: number | null;
     xNosStaked: number | null;
   }> {
-    if (!this.nosanaClient) {
-      throw new Error("NosanaClient is required for fetchStakingStats");
-    }
+    const client = this.requireClient();
     try {
-      const response = await this.nosanaClient.stake.all();
+      const response = await client.stake.all();
       let totalNos = BigInt(0);
       let totalXNos = BigInt(0);
       let skippedCount = 0;
