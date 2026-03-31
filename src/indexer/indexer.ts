@@ -4,6 +4,10 @@ import parentLogger from "../logger";
 
 const logger = parentLogger.child({ module: "indexer" });
 
+const RECONNECT_BASE_DELAY_MS = 1_000;
+const RECONNECT_MAX_DELAY_MS = 60_000;
+const MAX_RECONNECT_ATTEMPTS = 10;
+
 export class Indexer {
   readonly jobProcessor: JobProcessor;
   private nosanaClient: NosanaClient;
@@ -11,6 +15,7 @@ export class Indexer {
   private _lastActivity: Date = new Date();
   private _startTime: Date | null = null;
   private _stopMonitor: (() => void) | null = null;
+  private _reconnectAttempts: number = 0;
 
   constructor(nosanaClient: NosanaClient) {
     this.nosanaClient = nosanaClient;
@@ -50,40 +55,87 @@ export class Indexer {
     await this.jobProcessor.jobsGPA();
     await this.jobProcessor.marketsGPA();
 
-    const [eventStream, stop] = await this.nosanaClient.jobs.monitorDetailed();
-    this._stopMonitor = stop;
+    this.startMonitor();
+  }
 
-    // Process events in background
-    (async () => {
+  private async startMonitor() {
+    try {
+      const [eventStream, stop] = await this.nosanaClient.jobs.monitorDetailed();
+      this._stopMonitor = stop;
+
+      logger.info("WebSocket monitor connected");
+
       for await (const event of eventStream) {
         this.updateActivity();
+        this._reconnectAttempts = 0;
 
-        if (event.type === MonitorEventType.JOB) {
-          logger.debug({ address: event.data.address }, "JobAccount change");
-          const updatedJob = await this.jobProcessor.handleJobUpdate(event.data);
-          if (updatedJob) {
-            logger.debug(
-              { address: updatedJob.address },
-              "WebSocket updated/inserted job account data",
-            );
+        try {
+          if (event.type === MonitorEventType.JOB) {
+            logger.info({ address: event.data.address }, "JobAccount change");
+            const updatedJob = await this.jobProcessor.handleJobUpdate(event.data);
+            if (updatedJob) {
+              logger.info(
+                { address: updatedJob.address, state: updatedJob.state },
+                "WebSocket updated/inserted job account data",
+              );
+            }
+          } else if (event.type === MonitorEventType.MARKET) {
+            logger.info({ address: event.data.address }, "MarketAccount change");
+            await this.jobProcessor.handleMarketUpdate(event.data);
+          } else if (event.type === MonitorEventType.RUN) {
+            logger.info({ address: event.data.address }, "RunAccount change");
+            const updatedJob = await this.jobProcessor.handleRunUpdate(event.data);
+            if (updatedJob) {
+              logger.info(
+                { address: updatedJob.address, state: updatedJob.state },
+                "WebSocket updated/inserted job account data",
+              );
+            }
           }
-        } else if (event.type === MonitorEventType.MARKET) {
-          logger.debug({ address: event.data.address }, "MarketAccount change");
-          await this.jobProcessor.handleMarketUpdate(event.data);
-        } else if (event.type === MonitorEventType.RUN) {
-          logger.debug({ address: event.data.address }, "RunAccount change");
-          const updatedJob = await this.jobProcessor.handleRunUpdate(event.data);
-          if (updatedJob) {
-            logger.debug(
-              { address: updatedJob.address },
-              "WebSocket updated/inserted job account data",
-            );
-          }
+        } catch (error) {
+          logger.error(
+            { err: error, eventType: event.type, address: event.data?.address },
+            "Failed to handle monitor event",
+          );
         }
       }
-    })().catch((error) => {
+
+      // Stream ended without error — WebSocket closed silently
+      logger.warn("WebSocket event stream ended unexpectedly");
+      this.reconnect();
+    } catch (error) {
       logger.error({ err: error }, "Monitor event stream error");
-    });
+      this.reconnect();
+    }
+  }
+
+  private reconnect() {
+    if (!this._isRunning) return;
+
+    this._reconnectAttempts++;
+
+    if (this._reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+      logger.fatal(
+        { attempts: this._reconnectAttempts - 1 },
+        "Max reconnect attempts exceeded, exiting process",
+      );
+      process.exit(1);
+      return;
+    }
+
+    const delay = Math.min(
+      RECONNECT_BASE_DELAY_MS * 2 ** (this._reconnectAttempts - 1),
+      RECONNECT_MAX_DELAY_MS,
+    );
+    logger.info(
+      { attempt: this._reconnectAttempts, delayMs: delay },
+      "Reconnecting WebSocket monitor",
+    );
+
+    setTimeout(() => {
+      if (!this._isRunning) return;
+      this.startMonitor();
+    }, delay);
   }
 
   stop() {
