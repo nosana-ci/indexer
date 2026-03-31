@@ -249,4 +249,84 @@ describe("Indexer", () => {
       expect(() => indexer.stop()).not.toThrow();
     });
   });
+
+  describe("reconnection", () => {
+    it("should reconnect with exponential backoff, capped at 60s", async () => {
+      await indexer.start();
+
+      const expectedDelays = [1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 60_000, 60_000];
+      for (let i = 0; i < expectedDelays.length; i++) {
+        const timeBefore = Date.now();
+        await vi.advanceTimersToNextTimerAsync();
+        expect(Date.now() - timeBefore).toBe(expectedDelays[i]);
+        expect(mockNosanaClient.jobs.monitorDetailed).toHaveBeenCalledTimes(i + 2);
+      }
+    });
+
+    it("should reconnect on stream errors", async () => {
+      async function* errorStream() {
+        throw new Error("WebSocket connection lost");
+      }
+      mockNosanaClient.jobs.monitorDetailed.mockResolvedValue([errorStream(), noop]);
+
+      await indexer.start();
+      await vi.advanceTimersToNextTimerAsync();
+      expect(mockNosanaClient.jobs.monitorDetailed).toHaveBeenCalledTimes(2);
+    });
+
+    it("should not reconnect after stop", async () => {
+      await indexer.start();
+      await vi.advanceTimersToNextTimerAsync();
+      const callCount = mockNosanaClient.jobs.monitorDetailed.mock.calls.length;
+
+      indexer.stop();
+
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(mockNosanaClient.jobs.monitorDetailed).toHaveBeenCalledTimes(callCount);
+    });
+
+    it("should exit process after max reconnect attempts", async () => {
+      const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => undefined as never);
+
+      await indexer.start();
+
+      for (let i = 0; i < 9; i++) {
+        await vi.advanceTimersToNextTimerAsync();
+        expect(exitSpy).not.toHaveBeenCalled();
+      }
+
+      await vi.advanceTimersToNextTimerAsync();
+      expect(exitSpy).toHaveBeenCalledWith(1);
+
+      exitSpy.mockRestore();
+    });
+
+    it("should reset backoff after receiving an event", async () => {
+      let callCount = 0;
+      const { resolve, promise } = Promise.withResolvers<void>();
+
+      mockNosanaClient.jobs.monitorDetailed.mockImplementation(async () => {
+        callCount++;
+        if (callCount <= 2) {
+          return [emptyAsyncIterable(), noop];
+        }
+        async function* eventThenBlock() {
+          yield { type: "job", data: { address: "test" } };
+          await promise;
+        }
+        return [eventThenBlock(), noop];
+      });
+
+      await indexer.start();
+      await vi.advanceTimersToNextTimerAsync(); // reconnect #1
+      await vi.advanceTimersToNextTimerAsync(); // reconnect #2 → receives event → resets
+
+      resolve();
+      await vi.advanceTimersByTimeAsync(0);
+
+      const timeBefore = Date.now();
+      await vi.advanceTimersToNextTimerAsync();
+      expect(Date.now() - timeBefore).toBe(1_000); // back to 1s, not 4s
+    });
+  });
 });
