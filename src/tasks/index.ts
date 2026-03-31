@@ -2,6 +2,7 @@ import { getDb } from "../db/client";
 import { appTasksHistory } from "../db/tables/app-tasks-history";
 import { eq } from "drizzle-orm";
 import parentLogger from "../logger";
+import { populateEarningAndSpendingDB } from "./populate-earnings-spending";
 
 const logger = parentLogger.child({ module: "startup-tasks" });
 
@@ -19,11 +20,11 @@ export interface StartupTask {
  * Add new tasks to this array.
  */
 export const startupTasksRegistry: StartupTask[] = [
-  // {
-  //   id: 'populateEarningAndSpendingDB_001',
-  //   description: 'Populate daily earnings and job spend tables from historical jobs',
-  //   run: populateEarningAndSpendingDB,
-  // },
+  {
+    id: "populateEarningAndSpendingDB_001",
+    description: "Populate daily earnings and job spend tables from historical jobs",
+    run: populateEarningAndSpendingDB,
+  },
 ];
 
 /**
