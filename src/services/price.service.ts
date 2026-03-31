@@ -46,13 +46,18 @@ export async function getNosPrice(
 async function getCachedNosPrice(targetTimestamp: Date, maxAgeMs: number): Promise<number | null> {
   try {
     const db = getDb();
+    const lowerBound = new Date(targetTimestamp.getTime() - maxAgeMs);
+    const upperBound = new Date(targetTimestamp.getTime() + maxAgeMs);
+
     const result = await db
       .select({
         price: stats.price,
         date: stats.date,
       })
       .from(stats)
-      .where(sql`${stats.price} IS NOT NULL`)
+      .where(
+        sql`${stats.price} IS NOT NULL AND ${stats.date} >= ${lowerBound} AND ${stats.date} <= ${upperBound}`,
+      )
       .orderBy(sql`ABS(EXTRACT(EPOCH FROM ${stats.date}) - ${targetTimestamp.getTime() / 1000})`)
       .limit(1)
       .execute();
@@ -61,13 +66,7 @@ async function getCachedNosPrice(targetTimestamp: Date, maxAgeMs: number): Promi
       return null;
     }
 
-    const timeDiff = Math.abs(result[0].date.getTime() - targetTimestamp.getTime());
-
-    if (timeDiff <= maxAgeMs) {
-      return result[0].price;
-    }
-
-    return null;
+    return result[0].price;
   } catch (error) {
     logger.error({ err: error }, "Error getting cached NOS price");
     return null;
