@@ -8,7 +8,7 @@ variables:
   RUN_AUTO_BUMP: ok
   AUTO_BUMP_REPO: nosana-ci/apps/platform/k8s
   AUTO_BUMP_FILE: helm-blockchain-indexer.tf
-  AUTO_BUMP_SCG_PREFIX: image_tag [^}]*= { dev = \"
+  AUTO_BUMP_SCG_PREFIX: container_tag [^}]*= { dev = \"
 
 bun install:
   image: oven/bun:1.3.8-alpine
@@ -87,5 +87,5 @@ auto deploy prd:
   stage: .post
   extends: .auto-deploy
   variables:
-    AUTO_BUMP_SCG_PREFIX: image_tag [^}]* prd = \"
+    AUTO_BUMP_SCG_PREFIX: container_tag [^}]* prd = \"
   when: manual
