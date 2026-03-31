@@ -6,6 +6,7 @@ const logger = parentLogger.child({ module: "indexer" });
 
 const RECONNECT_BASE_DELAY_MS = 1_000;
 const RECONNECT_MAX_DELAY_MS = 60_000;
+const MAX_RECONNECT_ATTEMPTS = 10;
 
 export class Indexer {
   readonly jobProcessor: JobProcessor;
@@ -61,12 +62,12 @@ export class Indexer {
     try {
       const [eventStream, stop] = await this.nosanaClient.jobs.monitorDetailed();
       this._stopMonitor = stop;
-      this._reconnectAttempts = 0;
 
       logger.info("WebSocket monitor connected");
 
       for await (const event of eventStream) {
         this.updateActivity();
+        this._reconnectAttempts = 0;
 
         try {
           if (event.type === MonitorEventType.JOB) {
@@ -112,6 +113,16 @@ export class Indexer {
     if (!this._isRunning) return;
 
     this._reconnectAttempts++;
+
+    if (this._reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+      logger.fatal(
+        { attempts: this._reconnectAttempts - 1 },
+        "Max reconnect attempts exceeded, exiting process",
+      );
+      process.exit(1);
+      return;
+    }
+
     const delay = Math.min(
       RECONNECT_BASE_DELAY_MS * 2 ** (this._reconnectAttempts - 1),
       RECONNECT_MAX_DELAY_MS,
