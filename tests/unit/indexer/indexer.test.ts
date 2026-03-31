@@ -285,19 +285,32 @@ describe("Indexer", () => {
       expect(mockNosanaClient.jobs.monitorDetailed).toHaveBeenCalledTimes(callCount);
     });
 
-    it("should exit process after max reconnect attempts", async () => {
-      const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => undefined as never);
+    it("should call onFatalError after max reconnect attempts", async () => {
+      const onFatalError = vi.fn();
+      indexer.onFatalError = onFatalError;
 
       await indexer.start();
 
       for (let i = 0; i < 9; i++) {
         await vi.advanceTimersToNextTimerAsync();
-        expect(exitSpy).not.toHaveBeenCalled();
+        expect(onFatalError).not.toHaveBeenCalled();
       }
 
       await vi.advanceTimersToNextTimerAsync();
-      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(onFatalError).toHaveBeenCalledOnce();
+      expect(indexer.isRunning).toBe(false);
+    });
 
+    it("should fall back to process.exit when no onFatalError is set", async () => {
+      const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => undefined as never);
+
+      await indexer.start();
+
+      for (let i = 0; i < 10; i++) {
+        await vi.advanceTimersToNextTimerAsync();
+      }
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
       exitSpy.mockRestore();
     });
 
