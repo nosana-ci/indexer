@@ -37,7 +37,12 @@ let pool: Pool | undefined;
 let db: NodePgDatabase<typeof schema> | undefined;
 
 export function getPool() {
-  pool ??= new Pool({ connectionString: getConnectionString() });
+  pool ??= new Pool({
+    connectionString: getConnectionString(),
+    max: Number(process.env.DB_POOL_MAX) || 20,
+    idleTimeoutMillis: Number(process.env.DB_POOL_IDLE_TIMEOUT_MS) || 30_000,
+    connectionTimeoutMillis: Number(process.env.DB_POOL_CONNECTION_TIMEOUT_MS) || 5_000,
+  });
   return pool;
 }
 

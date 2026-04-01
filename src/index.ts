@@ -19,7 +19,14 @@ const mode = getAppMode();
 logger.info({ mode }, "Starting in mode");
 
 await runMigrations();
-await runStartupTasks();
+
+if (shouldRunCron(mode)) {
+  // runStartupTasks() only runs when mode is "cron" or "all",
+  // avoiding the race condition from multiple instances executing
+  // the same unguarded check-then-insert. Either remove the startup
+  // tasks all together or implement a distributed lock
+  await runStartupTasks();
+}
 
 // Create NosanaClient when needed (all modes except api)
 let nosanaClient: ReturnType<typeof createNosanaClient> | null = null;
@@ -270,3 +277,7 @@ const shutdown = async () => {
 
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
+
+if (indexer) {
+  indexer.onFatalError = shutdown;
+}

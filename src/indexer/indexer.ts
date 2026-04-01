@@ -16,10 +16,15 @@ export class Indexer {
   private _startTime: Date | null = null;
   private _stopMonitor: (() => void) | null = null;
   private _reconnectAttempts: number = 0;
+  private _onFatalError?: () => void;
 
   constructor(nosanaClient: NosanaClient) {
     this.nosanaClient = nosanaClient;
     this.jobProcessor = new JobProcessor(nosanaClient);
+  }
+
+  set onFatalError(callback: () => void) {
+    this._onFatalError = callback;
   }
 
   get isRunning(): boolean {
@@ -117,9 +122,14 @@ export class Indexer {
     if (this._reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
       logger.fatal(
         { attempts: this._reconnectAttempts - 1 },
-        "Max reconnect attempts exceeded, exiting process",
+        "Max reconnect attempts exceeded, shutting down",
       );
-      process.exit(1);
+      this._isRunning = false;
+      if (this._onFatalError) {
+        this._onFatalError();
+      } else {
+        process.exit(1);
+      }
       return;
     }
 
