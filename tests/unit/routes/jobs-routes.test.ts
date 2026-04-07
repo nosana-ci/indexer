@@ -167,11 +167,11 @@ describe('Jobs Routes', () => {
       mockJobsService.getJobsCount.mockResolvedValue(emptyCountResult({ COMPLETED: 7 }));
 
       await app.handle(
-        new Request(`${BASE_URL}/jobs/count?project=${testProjectAddr}`)
+        new Request(`${BASE_URL}/jobs/count?poster=${testProjectAddr}`)
       );
 
       expect(mockJobsService.getJobsCount).toHaveBeenCalledWith(
-        expect.objectContaining({ project: testProjectAddr })
+        expect.objectContaining({ poster: testProjectAddr })
       );
     });
 
@@ -192,7 +192,7 @@ describe('Jobs Routes', () => {
 
       await app.handle(
         new Request(
-          `${BASE_URL}/jobs/count?market=M&node=N&project=P&payer=Y`
+          `${BASE_URL}/jobs/count?market=M&node=N&poster=P&payer=Y`
         )
       );
 
@@ -200,7 +200,7 @@ describe('Jobs Routes', () => {
         expect.objectContaining({
           market: 'M',
           node: 'N',
-          project: 'P',
+          poster: 'P',
           payer: 'Y',
         })
       );

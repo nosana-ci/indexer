@@ -214,14 +214,14 @@ export default class JobsRepository {
   async countByState(params: {
     market?: string;
     node?: string;
-    project?: string;
+    poster?: string;
     payer?: string;
   }): Promise<{ state: number; count: number }[]> {
-    const { market, node, project, payer } = params;
+    const { market, node, poster, payer } = params;
     const conditions = [];
     if (market) conditions.push(eq(jobs.market, market));
     if (node) conditions.push(eq(jobs.node, node));
-    if (project) conditions.push(eq(jobs.project, project));
+    if (poster) conditions.push(eq(jobs.project, poster));
     if (payer) conditions.push(eq(jobs.payer, payer));
 
     return this.db
