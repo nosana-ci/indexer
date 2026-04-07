@@ -65,6 +65,17 @@ describe("Error handler", () => {
     expect(body.message).toBe("Internal server error");
   });
 
+  it("should return 404 for unknown routes", async () => {
+    const app = createApp();
+
+    const response = await app.handle(new Request("http://localhost/thisrouteshouldgive404"));
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.message).toBe("Not Found");
+    expect(body.code).toBe("NOT_FOUND");
+  });
+
   it("should return AppError without code when code is omitted", async () => {
     const app = createApp().get("/test-no-code", () => {
       throw new AppError("Server error", 503);
