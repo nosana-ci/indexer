@@ -162,7 +162,7 @@ export const GetLongRunningJobsQuery = t.Object({
 export const GetJobsCountQuery = t.Object({
   market: t.Optional(t.String()),
   node: t.Optional(t.String()),
-  project: t.Optional(t.String()),
+  poster: t.Optional(t.String()),
   payer: t.Optional(t.String()),
 });
 

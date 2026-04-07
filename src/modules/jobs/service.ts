@@ -80,11 +80,11 @@ export class JobsService {
   /**
    * Returns total job count and counts per state, with optional filters (market, node, project, payer).
    */
-  async getJobsCount(query: { market?: string; node?: string; project?: string; payer?: string }) {
+  async getJobsCount(query: { market?: string; node?: string; poster?: string; payer?: string }) {
     const rows = await this.jobsRepo.countByState({
       market: query.market,
       node: query.node,
-      project: query.project,
+      poster: query.poster,
       payer: query.payer,
     });
 
