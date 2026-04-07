@@ -34,20 +34,44 @@ export const createApp = (options?: { statsService?: StatsService }) => {
     .onAfterHandle(({ set }) => {
       Object.assign(set.headers, securityHeaders);
     })
-    .onError(({ error, status, request }) => {
+    .onError(({ code, error, request, set }) => {
+      Object.assign(set.headers, securityHeaders);
+
       if (error instanceof AppError) {
         logger.warn({ status: error.status, code: error.code, path: request.url }, error.message);
-        return status(error.status, { message: error.message, code: error.code });
+        set.status = error.status;
+
+        return error.code
+          ? { message: error.message, code: error.code }
+          : { message: error.message };
       }
+
+      if (code === "NOT_FOUND") {
+        set.status = 404;
+
+        return { message: "Not Found", code };
+      }
+
       if (typeof error === "object" && error !== null && "status" in error && "message" in error) {
-        const { status: errStatus, message } = error as {
+        const {
+          status: errStatus,
+          message,
+          code: errorCode,
+        } = error as {
           status: number;
           message: string;
+          code?: string;
         };
-        return status(errStatus, { message });
+
+        set.status = errStatus;
+
+        return typeof errorCode === "string" ? { message, code: errorCode } : { message };
       }
+
       logger.error({ err: error, method: request.method, path: request.url }, "Unhandled error");
-      return status(500, { message: "Internal server error" });
+      set.status = 500;
+
+      return { message: "Internal server error" };
     })
     .use(jobsRouter);
 

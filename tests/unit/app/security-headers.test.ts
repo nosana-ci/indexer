@@ -17,9 +17,17 @@ describe("Security headers", () => {
   const app = createApp().get("/test", () => "ok");
 
   it.each(Object.entries(securityHeaders))(
-    "should set %s header to %s",
+    "should set %s header to %s on successful responses",
     async (headerName, headerValue) => {
       const response = await app.handle(new Request("http://localhost/test"));
+      expect(response.headers.get(headerName)).toBe(headerValue);
+    },
+  );
+
+  it.each(Object.entries(securityHeaders))(
+    "should set %s header to %s on error responses",
+    async (headerName, headerValue) => {
+      const response = await app.handle(new Request("http://localhost/not-found"));
       expect(response.headers.get(headerName)).toBe(headerValue);
     },
   );
