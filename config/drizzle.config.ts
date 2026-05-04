@@ -1,21 +1,8 @@
 import { initEnv } from "../src/plugins/env";
+import { buildDatabaseUrlFromParts } from "../src/db/connection-string";
 import { defineConfig } from "drizzle-kit";
 
 initEnv();
-
-function buildDatabaseUrlFromParts() {
-  const host = process.env.POSTGRES_HOST;
-  const user = process.env.POSTGRES_USER;
-  const password = process.env.POSTGRES_PASSWORD;
-  const database = process.env.POSTGRES_DB;
-  const port = process.env.POSTGRES_PORT ?? "5432";
-
-  if (!host || !user || !password || !database) return undefined;
-
-  return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(
-    password
-  )}@${host}:${port}/${database}`;
-}
 
 // `drizzle-kit generate` doesn't require a live DB connection, but the config
 // still expects a URL string. We provide a sensible default to keep generation

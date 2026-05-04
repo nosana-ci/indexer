@@ -3,23 +3,10 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
+import { buildDatabaseUrlFromParts } from "./connection-string";
 import * as schema from "./schema";
 
 initEnv();
-
-function buildDatabaseUrlFromParts() {
-  const host = process.env.POSTGRES_HOST;
-  const user = process.env.POSTGRES_USER;
-  const password = process.env.POSTGRES_PASSWORD;
-  const database = process.env.POSTGRES_DB;
-  const port = process.env.POSTGRES_PORT ?? "5432";
-
-  if (!host || !user || !password || !database) return undefined;
-
-  return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(
-    password,
-  )}@${host}:${port}/${database}`;
-}
 
 function getConnectionString() {
   const connectionString = process.env.DATABASE_URL ?? buildDatabaseUrlFromParts();
