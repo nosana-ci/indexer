@@ -55,7 +55,6 @@ bun test:
 scenario test:
   stage: test
   image: docker:24.0.7
-  before_script: []
   services:
     - name: docker:24.0.7-dind
   variables:
@@ -74,6 +73,8 @@ scenario test:
     - export DOCKER_TLS_VERIFY=
     - export DOCKER_CERT_PATH=
     - until docker info >/dev/null 2>&1; do echo "Waiting for Docker daemon..."; sleep 2; done
+    # Login to docker hub to increase the pull rate limit
+    - echo $REG_TOKEN | docker login -u $REG_USERNAME --password-stdin $REG_ENDPOINT
     - apk add --no-cache bash curl unzip libstdc++ libgcc
     - curl -fsSL https://bun.sh/install | bash
     - export PATH="$HOME/.bun/bin:$PATH"
