@@ -79,14 +79,18 @@ if (shouldRunApi(mode) || shouldRunCron(mode)) {
 // Create JobCleanerService only in all/cron modes
 let jobCleanerService: JobCleanerService | null = null;
 
-if (shouldRunCron(mode) && process.env.CLEAN_ADMIN_PRIVATE_KEY && nosanaClient) {
-  try {
-    const keyBytes = new Uint8Array(JSON.parse(process.env.CLEAN_ADMIN_PRIVATE_KEY));
-    const adminSigner = await createKeyPairSignerFromBytes(keyBytes);
-    jobCleanerService = new JobCleanerService(nosanaClient, adminSigner);
-    logger.debug({ adminAddress: adminSigner.address }, "Job cleaner enabled");
-  } catch (error) {
-    logger.error({ err: error }, "Failed to initialize job cleaner");
+if (shouldRunCron(mode) && nosanaClient) {
+  if (process.env.CLEAN_ADMIN_PRIVATE_KEY) {
+    try {
+      const keyBytes = new Uint8Array(JSON.parse(process.env.CLEAN_ADMIN_PRIVATE_KEY));
+      const adminSigner = await createKeyPairSignerFromBytes(keyBytes);
+      jobCleanerService = new JobCleanerService(nosanaClient, adminSigner);
+      logger.info({ adminAddress: adminSigner.address }, "Job cleaner enabled");
+    } catch (error) {
+      logger.error({ err: error }, "Failed to initialize job cleaner");
+    }
+  } else {
+    logger.warn("CLEAN_ADMIN_PRIVATE_KEY is not set; job cleaner is disabled");
   }
 }
 
