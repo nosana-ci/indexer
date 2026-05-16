@@ -188,7 +188,7 @@ if (shouldRunCron(mode) && jobCleanerService) {
   app.use(
     cron({
       name: "job-cleaner",
-      pattern: "0 */6 * * *",
+      pattern: "*/5 * * * *", // every 5th minute
       protect: true,
       async run() {
         logger.info("Running Job Cleaner");
