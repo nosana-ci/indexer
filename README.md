@@ -2,6 +2,37 @@
 
 A **Bun + Elysia** service that indexes [Nosana](https://nosana.com) job, market, and run accounts from Solana into PostgreSQL and exposes them via a REST API.
 
+## Observability / Metrics
+
+This service exposes Prometheus metrics on `GET /metrics` (same port as `/health`):
+- Port: 3000 (default; overridden by `PORT` env var)
+- Content-Type: text/plain; version=0.0.4; charset=utf-8
+
+Constant labels on every metric:
+- `service="blockchain-indexer"`
+- `app_mode="<all|api|indexer|cron>"` (from `APP_MODE` env var)
+
+### Metrics by mode
+
+| Metric family | api | indexer | cron | all |
+|---|:-:|:-:|:-:|:-:|
+| `process_*`, `nodejs_*` (defaults) | ✓ | ✓ | ✓ | ✓ |
+| `http_requests_total`, `http_request_duration_seconds` | ✓ | — | — | ✓ |
+| `cron_runs_total{job,status}`, `cron_run_duration_seconds{job}` | — | — | ✓ | ✓ |
+| `indexer_events_total{event_type}`, `indexer_event_duration_seconds{event_type}`, `indexer_event_errors_total{event_type}` | — | ✓ | — | ✓ |
+| `indexer_websocket_connected`, `indexer_reconnect_attempts_total{reason}`, `indexer_last_activity_timestamp_seconds` | — | ✓ | — | ✓ |
+| `nosana_stats_nos_staked`, `nosana_stats_xnos_staked`, `nosana_stats_stakers_count`, `nosana_stats_nos_price_usd`, etc. | ✓ (read) | — | ✓ (read) | ✓ (read) |
+
+### Local scrape
+
+```bash
+curl http://localhost:3000/metrics
+```
+
+### Wiring it to Prometheus
+
+This service is currently NOT scraped — a follow-up MR will add a ServiceMonitor / Pod annotation in `apps/platform/k8s/`.
+
 ## What it does
 
 - **Live indexing**: Connects to Nosana via WebSocket (`monitorDetailed`) and writes job, market, and run account updates to the database as they happen on-chain.
