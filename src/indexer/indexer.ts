@@ -1,6 +1,7 @@
 import { type NosanaClient, MonitorEventType } from "@nosana/kit";
 import { JobProcessor } from "./job-processor";
 import parentLogger from "../logger";
+import type { IndexerMetrics } from "../metrics/indexer";
 
 const logger = parentLogger.child({ module: "indexer" });
 
@@ -17,10 +18,12 @@ export class Indexer {
   private _stopMonitor: (() => void) | null = null;
   private _reconnectAttempts: number = 0;
   private _onFatalError?: () => void;
+  private _metrics?: IndexerMetrics;
 
-  constructor(nosanaClient: NosanaClient) {
+  constructor(nosanaClient: NosanaClient, metrics?: IndexerMetrics) {
     this.nosanaClient = nosanaClient;
     this.jobProcessor = new JobProcessor(nosanaClient);
+    this._metrics = metrics;
   }
 
   set onFatalError(callback: () => void) {
@@ -69,11 +72,14 @@ export class Indexer {
       this._stopMonitor = stop;
 
       logger.info("WebSocket monitor connected");
+      this._metrics?.setWebsocketConnected(true);
 
       for await (const event of eventStream) {
         this.updateActivity();
+        this._metrics?.markActivity();
         this._reconnectAttempts = 0;
 
+        const eventStart = Date.now();
         try {
           if (event.type === MonitorEventType.JOB) {
             logger.info({ address: event.data.address }, "JobAccount change");
@@ -84,9 +90,11 @@ export class Indexer {
                 "WebSocket updated/inserted job account data",
               );
             }
+            this._metrics?.recordIndexerEvent("JOB", (Date.now() - eventStart) / 1000, true);
           } else if (event.type === MonitorEventType.MARKET) {
             logger.info({ address: event.data.address }, "MarketAccount change");
             await this.jobProcessor.handleMarketUpdate(event.data);
+            this._metrics?.recordIndexerEvent("MARKET", (Date.now() - eventStart) / 1000, true);
           } else if (event.type === MonitorEventType.RUN) {
             logger.info({ address: event.data.address }, "RunAccount change");
             const updatedJob = await this.jobProcessor.handleRunUpdate(event.data);
@@ -96,25 +104,33 @@ export class Indexer {
                 "WebSocket updated/inserted job account data",
               );
             }
+            this._metrics?.recordIndexerEvent("RUN", (Date.now() - eventStart) / 1000, true);
           }
         } catch (error) {
           logger.error(
             { err: error, eventType: event.type, address: event.data?.address },
             "Failed to handle monitor event",
           );
+          this._metrics?.recordIndexerEvent(
+            event.type as "JOB" | "MARKET" | "RUN",
+            (Date.now() - eventStart) / 1000,
+            false,
+          );
         }
       }
 
       // Stream ended without error — WebSocket closed silently
       logger.warn("WebSocket event stream ended unexpectedly");
-      this.reconnect();
+      this._metrics?.setWebsocketConnected(false);
+      this.reconnect("stream_ended");
     } catch (error) {
       logger.error({ err: error }, "Monitor event stream error");
-      this.reconnect();
+      this._metrics?.setWebsocketConnected(false);
+      this.reconnect("error");
     }
   }
 
-  private reconnect() {
+  private reconnect(reason: string = "error") {
     if (!this._isRunning) return;
 
     this._reconnectAttempts++;
@@ -124,6 +140,7 @@ export class Indexer {
         { attempts: this._reconnectAttempts - 1 },
         "Max reconnect attempts exceeded, shutting down",
       );
+      this._metrics?.recordReconnect("max_attempts", this._reconnectAttempts);
       this._isRunning = false;
       if (this._onFatalError) {
         this._onFatalError();
@@ -132,6 +149,8 @@ export class Indexer {
       }
       return;
     }
+
+    this._metrics?.recordReconnect(reason, this._reconnectAttempts);
 
     const delay = Math.min(
       RECONNECT_BASE_DELAY_MS * 2 ** (this._reconnectAttempts - 1),

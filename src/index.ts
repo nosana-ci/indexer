@@ -12,6 +12,7 @@ import { StatsService } from "./modules/stats/index.js";
 import JobCleanerService from "./services/job-cleaner.service.js";
 import logger from "./logger.js";
 import { getAppMode, shouldRunApi, shouldRunIndexer, shouldRunCron } from "./config/mode.js";
+import { createMetrics } from "./metrics/index.js";
 
 initEnv();
 
@@ -52,20 +53,11 @@ if (shouldRunIndexer(mode) || shouldRunCron(mode)) {
   );
 }
 
-// Indexer (WebSocket monitor) — only in all/indexer modes
-let indexer: Indexer | null = null;
-if (shouldRunIndexer(mode) && nosanaClient) {
-  indexer = new Indexer(nosanaClient);
-}
-
 // JobProcessor — only in cron mode (indexer mode gets it via Indexer)
 let jobProcessor: JobProcessor | null = null;
 if (shouldRunCron(mode) && !shouldRunIndexer(mode) && nosanaClient) {
   jobProcessor = new JobProcessor(nosanaClient);
 }
-
-// Resolve the processor for cron jobs (either from Indexer or standalone)
-const processor = indexer?.jobProcessor ?? jobProcessor;
 
 // Create StatsService in all/api/cron modes
 // API mode: pass null (only reads from DB)
@@ -94,10 +86,29 @@ if (shouldRunCron(mode) && nosanaClient) {
   }
 }
 
+const metrics = createMetrics(mode, statsService);
+
+// Indexer (WebSocket monitor) — only in all/indexer modes, with metrics wired in
+let indexer: Indexer | null = null;
+if (shouldRunIndexer(mode) && nosanaClient) {
+  indexer = new Indexer(nosanaClient, metrics.indexer);
+}
+
+// Resolve the processor for cron jobs (either from Indexer or standalone)
+const processor = indexer?.jobProcessor ?? jobProcessor;
+
 // Create the app — full routes in api/all modes, bare app otherwise
 const app = shouldRunApi(mode)
   ? createApp({ statsService: statsService ?? undefined })
   : createApp();
+
+// Mount HTTP metrics plugin before routes so all traffic is captured
+if (shouldRunApi(mode) && metrics.http) {
+  app.use(metrics.http.plugin);
+}
+
+// Mount /metrics endpoint
+app.use(metrics.mountRoute);
 
 // Health endpoint is always present
 app.get("/health", () => {
@@ -128,82 +139,99 @@ app.get("/health", () => {
 });
 
 // All cron jobs: only in all/cron modes
+const wrapCron =
+  metrics.cron?.wrap ??
+  ((opts: {
+    name: string;
+    pattern: string;
+    run: (...args: unknown[]) => unknown;
+    [k: string]: unknown;
+  }) => opts);
+
 if (shouldRunCron(mode) && processor) {
   const proc = processor;
   app
     .use(
-      cron({
-        name: "jobs-gpa",
-        pattern: "*/5 * * * *",
-        protect: true,
-        async run() {
-          logger.info("Running Jobs GPA and Markets GPA");
-          try {
-            await proc.jobsGPA();
-            logger.info("Jobs GPA completed successfully");
-            await proc.marketsGPA();
-            logger.info("Markets GPA completed successfully");
-          } catch (error) {
-            logger.error({ err: error }, "Jobs GPA or Markets GPA failed");
-          }
-        },
-      }),
+      cron(
+        wrapCron({
+          name: "jobs-gpa",
+          pattern: "*/5 * * * *",
+          protect: true,
+          async run() {
+            logger.info("Running Jobs GPA and Markets GPA");
+            try {
+              await proc.jobsGPA();
+              logger.info("Jobs GPA completed successfully");
+              await proc.marketsGPA();
+              logger.info("Markets GPA completed successfully");
+            } catch (error) {
+              logger.error({ err: error }, "Jobs GPA or Markets GPA failed");
+            }
+          },
+        }),
+      ),
     )
     .use(
-      cron({
-        name: "job-processing",
-        pattern: "*/2 * * * *",
-        protect: true,
-        async run() {
-          logger.info("Running Job Processing");
-          try {
-            await proc.processJobs();
-            logger.info("Job Processing completed successfully");
-          } catch (error) {
-            logger.error({ err: error }, "Job Processing failed");
-          }
-        },
-      }),
+      cron(
+        wrapCron({
+          name: "job-processing",
+          pattern: "*/2 * * * *",
+          protect: true,
+          async run() {
+            logger.info("Running Job Processing");
+            try {
+              await proc.processJobs();
+              logger.info("Job Processing completed successfully");
+            } catch (error) {
+              logger.error({ err: error }, "Job Processing failed");
+            }
+          },
+        }),
+      ),
     );
 }
 
 if (shouldRunCron(mode) && statsService) {
   const svc = statsService;
   app.use(
-    cron({
-      name: "refresh-stats",
-      pattern: "*/5 * * * *",
-      protect: true,
-      async run() {
-        logger.info("Refreshing stats");
-        try {
-          await svc.refreshStats();
-          logger.info("Refresh stats completed successfully");
-        } catch (error) {
-          logger.error({ err: error }, "Refresh stats failed");
-        }
-      },
-    }),
+    cron(
+      wrapCron({
+        name: "refresh-stats",
+        pattern: "*/5 * * * *",
+        protect: true,
+        async run() {
+          logger.info("Refreshing stats");
+          try {
+            await svc.refreshStats();
+            logger.info("Refresh stats completed successfully");
+          } catch (error) {
+            logger.error({ err: error }, "Refresh stats failed");
+          }
+        },
+      }),
+    ),
   );
 }
 
 if (shouldRunCron(mode) && jobCleanerService) {
   const cleaner = jobCleanerService;
   app.use(
-    cron({
-      name: "job-cleaner",
-      pattern: "*/5 * * * *", // every 5th minute
-      protect: true,
-      async run() {
-        logger.info("Running Job Cleaner");
-        try {
-          await cleaner.cleanJobs();
-          logger.info("Job Cleaner completed successfully");
-        } catch (error) {
-          logger.error({ err: error }, "Job Cleaner failed");
-        }
-      },
-    }),
+    cron(
+      wrapCron({
+        name: "job-cleaner",
+        pattern: "*/5 * * * *", // every 5th minute
+        protect: true,
+        async run() {
+          logger.info("Running Job Cleaner");
+          try {
+            await cleaner.cleanJobs();
+            logger.info("Job Cleaner completed successfully");
+          } catch (error) {
+            logger.error({ err: error }, "Job Cleaner failed");
+          }
+        },
+      }),
+    ),
   );
 }
 
@@ -266,6 +294,9 @@ const shutdown = async () => {
         busy = busyJobNames();
       }
     }
+
+    // Stop gauge refresh intervals
+    metrics.cleanupGauges?.();
 
     // Stop HTTP server and close DB pool
     app.server?.stop(true);
