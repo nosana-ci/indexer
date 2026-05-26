@@ -54,4 +54,17 @@ describe("httpElysiaPlugin", () => {
     const output = await handle.registry.metrics();
     expect(output).toContain(`status_range="4xx"`);
   });
+
+  it("uses Elysia's matched route template for params that aren't IDs/pubkeys/tokens", async () => {
+    const handle = createRegistry("api");
+    const app = new Elysia()
+      .use(httpElysiaPlugin(handle))
+      .get("/items/:slug", () => "ok");
+
+    await app.handle(new Request("http://localhost/items/some-arbitrary-name"));
+
+    const output = await handle.registry.metrics();
+    expect(output).toContain(`route="/items/:slug"`);
+    expect(output).not.toContain(`route="/items/some-arbitrary-name"`);
+  });
 });

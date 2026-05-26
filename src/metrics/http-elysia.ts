@@ -31,6 +31,7 @@ function recordRequest(
   request: Request,
   set: { status?: number | string; headers: Record<string, string> },
   handle: RegistryHandle,
+  route: string,
   errorStatus?: number,
 ): void {
   const url = new URL(request.url);
@@ -44,11 +45,11 @@ function recordRequest(
   const startTime = parseInt(startTimeStr, 10);
   const durationSeconds = (Date.now() - startTime) / 1000;
 
-  const route = extractRoutePattern(pathname);
+  const routeLabel = route || extractRoutePattern(pathname);
   const code = resolveStatusCode(set, errorStatus);
 
-  handle.http.requestsTotal.labels(request.method, route, statusRange(code)).inc();
-  handle.http.requestDuration.labels(request.method, route).observe(durationSeconds);
+  handle.http.requestsTotal.labels(request.method, routeLabel, statusRange(code)).inc();
+  handle.http.requestDuration.labels(request.method, routeLabel).observe(durationSeconds);
 
   delete set.headers["x-request-start-time"];
 }
@@ -57,6 +58,11 @@ function recordRequest(
  * Elysia plugin (function-style for correct lifecycle propagation in Elysia 1.4)
  * that stamps request start time on onRequest and records HTTP metrics on
  * onAfterHandle / onError. Excludes /metrics from instrumentation.
+ *
+ * Prefers Elysia's matched route template (Context.route, e.g. "/items/:slug")
+ * over regex-based pattern extraction so the `route` label is bounded by the
+ * number of registered routes rather than by user input. Falls back to
+ * extractRoutePattern only for unmatched paths (typically 404s).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function httpElysiaPlugin(handle: RegistryHandle): any {
@@ -67,15 +73,16 @@ export function httpElysiaPlugin(handle: RegistryHandle): any {
         if (pathname.startsWith(METRICS_ROUTE)) return;
         set.headers["x-request-start-time"] = Date.now().toString();
       })
-      .onAfterHandle(({ request, set }) => {
+      .onAfterHandle(({ request, set, route }) => {
         recordRequest(
           request,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           set as any,
           handle,
+          route,
         );
       })
-      .onError(({ request, set, error }) => {
+      .onError(({ request, set, error, route }) => {
         const errorStatusCode =
           error && typeof error === "object" && "status" in error
             ? ((error as { status?: number }).status ?? 500)
@@ -85,6 +92,7 @@ export function httpElysiaPlugin(handle: RegistryHandle): any {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           set as any,
           handle,
+          route,
           errorStatusCode,
         );
       });
