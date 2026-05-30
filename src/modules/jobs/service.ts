@@ -19,6 +19,13 @@ import type { JobResponse, JobBatchItemResponse } from "./model";
 
 export class JobsService {
   private statsCache?: StatsType;
+  private readonly timestampsCache = new Map<
+    string,
+    {
+      expiresAt: number;
+      value: { total: number; data: Array<{ x: number; y: number }> };
+    }
+  >();
   private readonly jobsRepo: JobsRepository;
 
   constructor() {
@@ -411,60 +418,62 @@ export class JobsService {
   }
 
   async getTimestamps(period: number) {
-    const jobRows = await this.jobsRepo.findTimeStartsSince(
-      period ? Math.floor(Date.now() / 1000) - period : 0,
-    );
-    const timeStamps = jobRows.map((job: { timeStart: number }) => job.timeStart);
-    const updatedData: Array<{ x: number; y: number }> = [];
-    const tempDateCollection: Array<string | null> = [];
-    timeStamps
-      .sort((a: number, b: number) => b - a)
-      .forEach((j: number) => {
-        const timestamp = j * 1000;
-        const currentDate = new Date(timestamp);
-        const startDate = new Date(currentDate.getFullYear(), 0, 1);
-        const days = Math.floor(
-          (currentDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000),
-        );
+    return this.getCachedTimestampSeries("count", period, async () => {
+      const jobRows = await this.jobsRepo.findTimeStartsSince(
+        period ? Math.floor(Date.now() / 1000) - period : 0,
+      );
+      const timeStamps = jobRows.map((job: { timeStart: number }) => job.timeStart);
+      const updatedData: Array<{ x: number; y: number }> = [];
+      const tempDateCollection: Array<string | null> = [];
+      timeStamps
+        .sort((a: number, b: number) => b - a)
+        .forEach((j: number) => {
+          const timestamp = j * 1000;
+          const currentDate = new Date(timestamp);
+          const startDate = new Date(currentDate.getFullYear(), 0, 1);
+          const days = Math.floor(
+            (currentDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000),
+          );
 
-        const weekNumber = Math.ceil(days / 7);
-        let granularity: string | null;
-        if (period > (365 / 3) * 24 * 3600) {
-          // Bigger than 4 months, group by week
-          granularity = weekNumber + dayjs(timestamp).format("YYYY");
-        } else if (period > 5 * 24 * 3600) {
-          // Bigger than 5 days, group by day
-          granularity = dayjs(timestamp).format("DD/MMM/YYYY");
-        } else if (period > 12 * 3600) {
-          // Bigger than 12 hours, group by hour
-          granularity = dayjs(timestamp).format("HH DD/MMM/YYYY");
-        } else if (period > 0) {
-          // Under 12 hours
-          granularity = dayjs(timestamp).format("HH:mm DD/MMM/YYYY");
-        } else {
-          // All: group by month
-          granularity = dayjs(timestamp).format("MMM/YYYY");
-        }
-        if (granularity && tempDateCollection.includes(granularity)) {
-          const index = tempDateCollection.indexOf(granularity);
-          const element = updatedData[index];
-          updatedData[index] = {
-            x: updatedData[index].x,
-            y: element.y + 1,
-          };
-        } else {
-          tempDateCollection.push(granularity);
-          updatedData.push({
-            x: timestamp,
-            y: 1,
-          });
-        }
-      });
+          const weekNumber = Math.ceil(days / 7);
+          let granularity: string | null;
+          if (period > (365 / 3) * 24 * 3600) {
+            // Bigger than 4 months, group by week
+            granularity = weekNumber + dayjs(timestamp).format("YYYY");
+          } else if (period > 5 * 24 * 3600) {
+            // Bigger than 5 days, group by day
+            granularity = dayjs(timestamp).format("DD/MMM/YYYY");
+          } else if (period > 12 * 3600) {
+            // Bigger than 12 hours, group by hour
+            granularity = dayjs(timestamp).format("HH DD/MMM/YYYY");
+          } else if (period > 0) {
+            // Under 12 hours
+            granularity = dayjs(timestamp).format("HH:mm DD/MMM/YYYY");
+          } else {
+            // All: group by month
+            granularity = dayjs(timestamp).format("MMM/YYYY");
+          }
+          if (granularity && tempDateCollection.includes(granularity)) {
+            const index = tempDateCollection.indexOf(granularity);
+            const element = updatedData[index];
+            updatedData[index] = {
+              x: updatedData[index].x,
+              y: element.y + 1,
+            };
+          } else {
+            tempDateCollection.push(granularity);
+            updatedData.push({
+              x: timestamp,
+              y: 1,
+            });
+          }
+        });
 
-    return {
-      total: jobRows.length,
-      data: updatedData,
-    };
+      return {
+        total: jobRows.length,
+        data: updatedData,
+      };
+    });
   }
 
   /**
@@ -474,22 +483,24 @@ export class JobsService {
    * row per bucket is returned, which stays fast even with millions of jobs.
    */
   async getDurationTimestamps(period: number) {
-    const since = period ? Math.floor(Date.now() / 1000) - period : 0;
-    const interval = this.resolveBucketInterval(period);
+    return this.getCachedTimestampSeries("duration", period, async () => {
+      const since = period ? Math.floor(Date.now() / 1000) - period : 0;
+      const interval = this.resolveBucketInterval(period);
 
-    const rows = await this.jobsRepo.getDurationBucketsSince(since, interval);
+      const rows = await this.jobsRepo.getDurationBucketsSince(since, interval);
 
-    let total = 0;
-    const data = rows.map((row) => {
-      const hours = Number(row.seconds) / 3600;
-      total += hours;
-      return { x: Number(row.bucket), y: Math.round(hours * 100) / 100 };
+      let total = 0;
+      const data = rows.map((row) => {
+        const hours = Number(row.seconds) / 3600;
+        total += hours;
+        return { x: Number(row.bucket), y: Math.round(hours * 100) / 100 };
+      });
+
+      return {
+        total: Math.round(total * 100) / 100,
+        data,
+      };
     });
-
-    return {
-      total: Math.round(total * 100) / 100,
-      data,
-    };
   }
 
   /**
@@ -503,6 +514,46 @@ export class JobsService {
     if (period > 12 * 3600) return "hour";
     if (period > 0) return "minute";
     return "month";
+  }
+
+  private async getCachedTimestampSeries(
+    cacheName: "count" | "duration",
+    period: number,
+    load: () => Promise<{ total: number; data: Array<{ x: number; y: number }> }>,
+  ) {
+    const cacheKey = `${cacheName}:${period}`;
+    const now = Math.floor(Date.now() / 1000);
+    const cached = this.timestampsCache.get(cacheKey);
+
+    if (cached && now < cached.expiresAt) {
+      return cached.value;
+    }
+
+    const value = await load();
+    this.timestampsCache.set(cacheKey, {
+      expiresAt: now + this.getTimestampCacheTtl(period),
+      value,
+    });
+    return value;
+  }
+
+  private getTimestampCacheTtl(period: number) {
+    if (period === 0 || period >= 365 * 24 * 3600) {
+      return 24 * 60 * 60;
+    }
+    if (period >= (365 / 4) * 24 * 3600) {
+      return 12 * 60 * 60;
+    }
+    if (period >= (365 / 12) * 24 * 3600) {
+      return 6 * 60 * 60;
+    }
+    if (period >= 7 * 24 * 3600) {
+      return 3 * 60 * 60;
+    }
+    if (period >= 24 * 3600) {
+      return 60 * 60;
+    }
+    return 3 * 60;
   }
 
   private mapToResponse(job: SelectJob): JobResponse {
