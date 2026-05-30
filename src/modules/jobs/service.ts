@@ -467,6 +467,44 @@ export class JobsService {
     };
   }
 
+  /**
+   * Returns GPU compute hours (sum of effective job runtime) bucketed over
+   * time, mirroring the shape of {@link getTimestamps} but with `y` being
+   * hours instead of a job count. Aggregation happens in Postgres so only one
+   * row per bucket is returned, which stays fast even with millions of jobs.
+   */
+  async getDurationTimestamps(period: number) {
+    const since = period ? Math.floor(Date.now() / 1000) - period : 0;
+    const interval = this.resolveBucketInterval(period);
+
+    const rows = await this.jobsRepo.getDurationBucketsSince(since, interval);
+
+    let total = 0;
+    const data = rows.map((row) => {
+      const hours = Number(row.seconds) / 3600;
+      total += hours;
+      return { x: Number(row.bucket), y: Math.round(hours * 100) / 100 };
+    });
+
+    return {
+      total: Math.round(total * 100) / 100,
+      data,
+    };
+  }
+
+  /**
+   * Maps a lookback period (in seconds) to a Postgres `date_trunc` unit,
+   * matching the bucket granularity used by {@link getTimestamps} and the
+   * explorer chart.
+   */
+  private resolveBucketInterval(period: number): "week" | "day" | "hour" | "minute" | "month" {
+    if (period > (365 / 3) * 24 * 3600) return "week";
+    if (period > 5 * 24 * 3600) return "day";
+    if (period > 12 * 3600) return "hour";
+    if (period > 0) return "minute";
+    return "month";
+  }
+
   private mapToResponse(job: SelectJob): JobResponse {
     return {
       id: job.id,

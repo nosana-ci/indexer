@@ -115,6 +115,25 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
     },
   )
   .get(
+    "/stats/timestamps-hours",
+    async ({ query, jobsService }) => {
+      return await jobsService.getDurationTimestamps(
+        query.period ? parseInt(query.period) : (365 / 12) * 24 * 3600,
+      );
+    },
+    {
+      query: t.Object({
+        period: t.Optional(t.String()),
+      }),
+      detail: {
+        summary: "Get GPU compute hours over time",
+        description:
+          "Time series of GPU compute hours (sum of effective completed-job runtime) bucketed by period, mirroring /stats/timestamps but with hours instead of job counts.",
+        tags: ["Jobs"],
+      },
+    },
+  )
+  .get(
     "/count",
     async ({ query, jobsService }) => {
       return await jobsService.getJobsCount(query);

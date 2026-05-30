@@ -300,6 +300,38 @@ export default class JobsRepository {
     });
   }
 
+  /**
+   * Aggregates effective compute runtime (in seconds) of completed jobs into
+   * time buckets, grouped entirely in the database so only one row per bucket
+   * is transferred. Filtering on `state = 2` lets Postgres use the
+   * `idx_jobs_state_timestart` composite index for the `time_start` range,
+   * keeping the scan bounded even with millions of jobs.
+   *
+   * `timeSeriesInterval` is a Postgres `date_trunc` unit (e.g. "minute",
+   * "hour", "day", "week", "month"). `effectiveRuntimeSeconds` mirrors the
+   * stats aggregation: LEAST(timeEnd - timeStart, timeout), clamped to >= 0.
+   */
+  async getDurationBucketsSince(sinceUnix: number, timeSeriesInterval: string) {
+    const bucketMs = sql<string>`(extract(epoch from date_trunc(${timeSeriesInterval}, to_timestamp(${jobs.timeStart}))) * 1000)::bigint`;
+    const seconds = sql<string>`sum(LEAST(GREATEST(${jobs.timeEnd} - ${jobs.timeStart}, 0), ${jobs.timeout}))::bigint`;
+
+    const conditions = [eq(jobs.state, 2), gt(jobs.timeStart, 0), gt(jobs.timeEnd, 0)];
+    if (sinceUnix > 0) {
+      conditions.push(gt(jobs.timeStart, sinceUnix));
+    }
+
+    // Group/order by the bucket's ordinal position. Referencing the expression
+    // directly would re-render the column with a different table qualifier in
+    // GROUP BY than in SELECT, which Postgres rejects.
+    return this.db
+      .select({ bucket: bucketMs, seconds })
+      .from(jobs)
+      .where(and(...conditions))
+      .groupBy(sql`1`)
+      .orderBy(sql`1 desc`)
+      .execute();
+  }
+
   // ── Stats aggregation queries ───────────────────────────────────────
 
   createStatsBaseCte(conditions: SQL[]) {
