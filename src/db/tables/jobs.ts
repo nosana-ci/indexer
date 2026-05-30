@@ -1,5 +1,5 @@
 import { integer, pgTable, serial, varchar, jsonb, real, index } from "drizzle-orm/pg-core";
-import { desc } from "drizzle-orm";
+import { desc, sql } from "drizzle-orm";
 import { MAX_PUBKEY_LENGTH } from "../constants";
 
 export const jobs = pgTable(
@@ -27,6 +27,14 @@ export const jobs = pgTable(
   },
   (table) => ({
     stateTimeStartIdx: index("idx_jobs_state_timestart").on(table.state, desc(table.timeStart)),
+    // Partial covering index for the compute-hours/duration aggregation
+    // (GET /jobs/stats/timestamps-hours). Restricting to completed jobs with a
+    // real end time and keeping time_end/timeout in the index lets Postgres
+    // satisfy the aggregation with an index-only scan (no heap fetches), which
+    // keeps the query fast even across millions of jobs.
+    durationCoverIdx: index("idx_jobs_duration_cover")
+      .on(table.state, table.timeStart, table.timeEnd, table.timeout)
+      .where(sql`${table.state} = 2 AND ${table.timeEnd} > 0`),
   }),
 );
 
