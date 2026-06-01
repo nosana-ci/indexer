@@ -17,7 +17,7 @@ import JobsRepository from "../../../src/repositories/jobs.repository";
 const dialect = new PgDialect();
 
 function getCompiledQuery() {
-  const [statement] = mockExecute.mock.calls.at(-1) as [SQL];
+  const [statement] = mockExecute.mock.calls[mockExecute.mock.calls.length - 1] as [SQL];
   return dialect.sqlToQuery(statement);
 }
 
