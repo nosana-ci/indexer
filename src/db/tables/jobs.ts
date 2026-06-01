@@ -28,13 +28,14 @@ export const jobs = pgTable(
   (table) => ({
     stateTimeStartIdx: index("idx_jobs_state_timestart").on(table.state, desc(table.timeStart)),
     // Partial covering index for the compute-hours/duration aggregation
-    // (GET /jobs/stats/timestamps-hours). Restricting to completed jobs with a
-    // real end time and keeping time_end/timeout in the index lets Postgres
-    // satisfy the aggregation with an index-only scan (no heap fetches), which
-    // keeps the query fast even across millions of jobs.
+    // (GET /jobs/stats/timestamps-hours). Covers completed jobs with a real end
+    // time as well as running jobs (which have time_end = 0 and are bounded by
+    // now()/timeout at query time). Keeping time_end/timeout in the index lets
+    // Postgres satisfy the source scan with an index-only scan, which keeps the
+    // query fast even across millions of jobs.
     durationCoverIdx: index("idx_jobs_duration_cover")
       .on(table.state, table.timeStart, table.timeEnd, table.timeout)
-      .where(sql`${table.state} = 2 AND ${table.timeEnd} > 0`),
+      .where(sql`${table.state} = 1 OR (${table.state} = 2 AND ${table.timeEnd} > 0)`),
   }),
 );
 
