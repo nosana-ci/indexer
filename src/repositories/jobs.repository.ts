@@ -329,20 +329,30 @@ export default class JobsRepository {
     // (28–31 days) is handled correctly.
     const step = `1 ${timeSeriesInterval}`;
     const nowSecs = sql`extract(epoch FROM now())::bigint`;
+    const effectiveEnd = sql<number>`LEAST(
+      CASE WHEN ${jobs.state} = 2 THEN LEAST(${jobs.timeEnd}, ${nowSecs}) ELSE ${nowSecs} END,
+      ${jobs.timeStart} + ${jobs.timeout}
+    )`;
+
+    const spansQuery = this.db
+      .select({
+        s: sql<number>`GREATEST(${jobs.timeStart}, ${sinceUnix})`.as("s"),
+        e: effectiveEnd.as("e"),
+      })
+      .from(jobs)
+      .where(
+        and(
+          or(eq(jobs.state, 1), and(eq(jobs.state, 2), gt(jobs.timeEnd, 0))),
+          gt(jobs.timeStart, 0),
+          gt(
+            sql<number>`CASE WHEN ${jobs.state} = 2 THEN ${jobs.timeEnd} ELSE ${nowSecs} END`,
+            sinceUnix,
+          ),
+        ),
+      );
 
     const result = await this.db.execute<{ bucket: string; seconds: string }>(sql`
-      WITH spans AS (
-        SELECT
-          GREATEST(${jobs.timeStart}, ${sinceUnix}) AS s,
-          LEAST(
-            CASE WHEN ${jobs.state} = 2 THEN LEAST(${jobs.timeEnd}, ${nowSecs}) ELSE ${nowSecs} END,
-            ${jobs.timeStart} + ${jobs.timeout}
-          ) AS e
-        FROM ${jobs}
-        WHERE (${jobs.state} = 1 OR (${jobs.state} = 2 AND ${jobs.timeEnd} > 0))
-          AND ${jobs.timeStart} > 0
-          AND (CASE WHEN ${jobs.state} = 2 THEN ${jobs.timeEnd} ELSE ${nowSecs} END) > ${sinceUnix}
-      )
+      WITH spans AS (${spansQuery})
       SELECT
         (extract(epoch FROM bucket_start) * 1000)::bigint AS bucket,
         sum(
