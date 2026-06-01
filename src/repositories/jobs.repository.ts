@@ -301,35 +301,79 @@ export default class JobsRepository {
   }
 
   /**
-   * Aggregates effective compute runtime (in seconds) of completed jobs into
-   * time buckets, grouped entirely in the database so only one row per bucket
-   * is transferred. Filtering on `state = 2` lets Postgres use the
-   * `idx_jobs_state_timestart` composite index for the `time_start` range,
-   * keeping the scan bounded even with millions of jobs.
+   * Aggregates effective compute runtime (in seconds) into time buckets,
+   * time-weighted across every bucket a job actually spans rather than dumping
+   * a job's whole runtime into its start bucket. This makes the series reflect
+   * real GPU utilisation per period: a job running across several days
+   * contributes to each of those days proportionally.
+   *
+   * Both completed (`state = 2`) and running (`state = 1`) jobs are counted.
+   * The effective interval for a job is
+   * `[time_start, LEAST(end, time_start + timeout)]`, where `end` is `time_end`
+   * for completed jobs and `now()` for running ones — so an in-progress job
+   * contributes up to the present moment but never beyond its timeout.
+   *
+   * A job is included when its effective interval overlaps the requested window
+   * `(sinceUnix, now]`, and its interval is clipped to that window before being
+   * distributed. This means a long job that started before the window still
+   * contributes the portion that falls inside it, and clipping keeps the
+   * lateral `generate_series` fan-out bounded (at most window / bucket rows per
+   * job) so the query stays fast even for fine-grained views.
    *
    * `timeSeriesInterval` is a Postgres `date_trunc` unit (e.g. "minute",
-   * "hour", "day", "week", "month"). `effectiveRuntimeSeconds` mirrors the
-   * stats aggregation: LEAST(timeEnd - timeStart, timeout), clamped to >= 0.
+   * "hour", "day", "week", "month").
    */
   async getDurationBucketsSince(sinceUnix: number, timeSeriesInterval: string) {
-    const bucketMs = sql<string>`(extract(epoch from date_trunc(${timeSeriesInterval}, to_timestamp(${jobs.timeStart}))) * 1000)::bigint`;
-    const seconds = sql<string>`sum(LEAST(GREATEST(${jobs.timeEnd} - ${jobs.timeStart}, 0), ${jobs.timeout}))::bigint`;
+    // Bucket width as a Postgres interval literal, e.g. "1 day". date_trunc and
+    // the generate_series step both use the same unit so month-length variance
+    // (28–31 days) is handled correctly.
+    const step = `1 ${timeSeriesInterval}`;
+    const nowSecs = sql`extract(epoch FROM now())::bigint`;
+    const effectiveEnd = sql<number>`LEAST(
+      CASE WHEN ${jobs.state} = 2 THEN LEAST(${jobs.timeEnd}, ${nowSecs}) ELSE ${nowSecs} END,
+      ${jobs.timeStart} + ${jobs.timeout}
+    )`;
 
-    const conditions = [eq(jobs.state, 2), gt(jobs.timeStart, 0), gt(jobs.timeEnd, 0)];
-    if (sinceUnix > 0) {
-      conditions.push(gt(jobs.timeStart, sinceUnix));
-    }
-
-    // Group/order by the bucket's ordinal position. Referencing the expression
-    // directly would re-render the column with a different table qualifier in
-    // GROUP BY than in SELECT, which Postgres rejects.
-    return this.db
-      .select({ bucket: bucketMs, seconds })
+    const spansQuery = this.db
+      .select({
+        s: sql<number>`GREATEST(${jobs.timeStart}, ${sinceUnix})`.as("s"),
+        e: effectiveEnd.as("e"),
+      })
       .from(jobs)
-      .where(and(...conditions))
-      .groupBy(sql`1`)
-      .orderBy(sql`1 desc`)
-      .execute();
+      .where(
+        and(
+          or(eq(jobs.state, 1), and(eq(jobs.state, 2), gt(jobs.timeEnd, 0))),
+          gt(jobs.timeStart, 0),
+          gt(
+            sql<number>`CASE WHEN ${jobs.state} = 2 THEN ${jobs.timeEnd} ELSE ${nowSecs} END`,
+            sinceUnix,
+          ),
+        ),
+      );
+
+    const result = await this.db.execute<{ bucket: string; seconds: string }>(sql`
+      WITH spans AS (${spansQuery})
+      SELECT
+        (extract(epoch FROM bucket_start) * 1000)::bigint AS bucket,
+        sum(
+          GREATEST(
+            LEAST(spans.e, extract(epoch FROM bucket_start + ${step}::interval)::bigint)
+              - GREATEST(spans.s, extract(epoch FROM bucket_start)::bigint),
+            0
+          )
+        )::bigint AS seconds
+      FROM spans
+      CROSS JOIN LATERAL generate_series(
+        date_trunc(${timeSeriesInterval}, to_timestamp(spans.s)),
+        date_trunc(${timeSeriesInterval}, to_timestamp(spans.e)),
+        ${step}::interval
+      ) AS g(bucket_start)
+      WHERE spans.e > spans.s
+      GROUP BY bucket_start
+      ORDER BY bucket_start DESC
+    `);
+
+    return result.rows;
   }
 
   // ── Stats aggregation queries ───────────────────────────────────────

@@ -1,0 +1,2 @@
+DROP INDEX "idx_jobs_duration_cover";--> statement-breakpoint
+CREATE INDEX "idx_jobs_duration_cover" ON "jobs" USING btree ("state","time_start","time_end","timeout") WHERE "jobs"."state" = 1 OR ("jobs"."state" = 2 AND "jobs"."time_end" > 0);
