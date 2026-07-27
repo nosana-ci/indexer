@@ -5,6 +5,10 @@ import { closePool } from "./db/client.js";
 import { runStartupTasks } from "./tasks/index.js";
 import { Indexer } from "./indexer/indexer.js";
 import { JobProcessor } from "./indexer/job-processor.js";
+import { ProgramSignaturePoller } from "./events/signature-poller.js";
+import { ProgramSignatureBackfiller } from "./events/signature-backfiller.js";
+import { TransactionProcessor } from "./events/transaction-processor.js";
+import { ProgramLogSubscriber } from "./events/log-subscriber.js";
 import { createNosanaClient, type NosanaNetwork, type PartialClientConfig } from "@nosana/kit";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { cron } from "@elysiajs/cron";
@@ -92,6 +96,14 @@ const metrics = createMetrics(mode, statsService);
 let indexer: Indexer | null = null;
 if (shouldRunIndexer(mode) && nosanaClient) {
   indexer = new Indexer(nosanaClient, metrics.indexer);
+}
+
+// Program logs subscription — low-latency signature ingestion. Lives in cron
+// mode alongside the poll/backfill/processor so the whole event pipeline is
+// self-contained in one mode (the cron poll is its reliable backstop).
+let programLogSubscriber: ProgramLogSubscriber | null = null;
+if (shouldRunCron(mode) && nosanaClient) {
+  programLogSubscriber = new ProgramLogSubscriber(nosanaClient, { metrics: metrics.events });
 }
 
 // Resolve the processor for cron jobs (either from Indexer or standalone)
@@ -191,6 +203,65 @@ if (shouldRunCron(mode) && processor) {
     );
 }
 
+// Program-level event indexing: ingest program tx signatures (go-forward poll
+// + historical backfill), then decode them into job events. Cron mode only.
+if (shouldRunCron(mode) && nosanaClient) {
+  const signaturePoller = new ProgramSignaturePoller(nosanaClient, { metrics: metrics.events });
+  const signatureBackfiller = new ProgramSignatureBackfiller(nosanaClient, {
+    metrics: metrics.events,
+  });
+  const transactionProcessor = new TransactionProcessor(nosanaClient, { metrics: metrics.events });
+  app
+    .use(
+      cron(
+        wrapCron({
+          name: "program-signatures-poll",
+          pattern: "* * * * *",
+          protect: true,
+          async run() {
+            try {
+              await signaturePoller.poll();
+            } catch (error) {
+              logger.error({ err: error }, "Program signature poll failed");
+            }
+          },
+        }),
+      ),
+    )
+    .use(
+      cron(
+        wrapCron({
+          name: "program-signatures-backfill",
+          pattern: "* * * * *",
+          protect: true,
+          async run() {
+            try {
+              await signatureBackfiller.backfill();
+            } catch (error) {
+              logger.error({ err: error }, "Program signature backfill failed");
+            }
+          },
+        }),
+      ),
+    )
+    .use(
+      cron(
+        wrapCron({
+          name: "process-transactions",
+          pattern: "* * * * *",
+          protect: true,
+          async run() {
+            try {
+              await transactionProcessor.process();
+            } catch (error) {
+              logger.error({ err: error }, "Transaction processing failed");
+            }
+          },
+        }),
+      ),
+    );
+}
+
 if (shouldRunCron(mode) && statsService) {
   const svc = statsService;
   app.use(
@@ -254,6 +325,12 @@ if (indexer) {
   }
 }
 
+// Program logs subscription: low-latency signature ingestion (all/cron modes)
+if (programLogSubscriber) {
+  programLogSubscriber.start();
+  logger.info("Program logs subscription started");
+}
+
 const SHUTDOWN_TIMEOUT_MS = 30_000;
 const CRON_POLL_INTERVAL_MS = 500;
 
@@ -269,6 +346,9 @@ const shutdown = async () => {
     // Stop indexer WebSocket monitoring
     if (indexer) {
       indexer.stop();
+    }
+    if (programLogSubscriber) {
+      programLogSubscriber.stop();
     }
 
     // Stop cron scheduling and wait for in-flight jobs to complete

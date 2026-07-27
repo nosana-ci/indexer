@@ -3,6 +3,7 @@ import { httpElysiaPlugin } from "./http-elysia";
 import { metricsRoute } from "./route";
 import { makeCronWrapper } from "./cron";
 import { makeIndexerMetrics } from "./indexer";
+import { makeEventMetrics } from "./events";
 import { registerStatsGauges } from "./gauges";
 import { shouldRunApi, shouldRunCron, shouldRunIndexer } from "../config/mode";
 import type { AppMode } from "../config/mode";
@@ -27,6 +28,7 @@ export function createMetrics(
     http?: { plugin: ReturnType<typeof httpElysiaPlugin> };
     cron?: { wrap: ReturnType<typeof makeCronWrapper> };
     indexer?: ReturnType<typeof makeIndexerMetrics>;
+    events?: ReturnType<typeof makeEventMetrics>;
     cleanupGauges?: () => void;
   } = {
     registry: handle.registry,
@@ -43,6 +45,11 @@ export function createMetrics(
 
   if (shouldRunIndexer(mode)) {
     result.indexer = makeIndexerMetrics(handle);
+  }
+
+  // The program-level event pipeline runs entirely in cron mode.
+  if (shouldRunCron(mode)) {
+    result.events = makeEventMetrics(handle);
   }
 
   if ((shouldRunApi(mode) || shouldRunCron(mode)) && statsService) {

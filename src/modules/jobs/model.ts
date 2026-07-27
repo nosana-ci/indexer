@@ -32,9 +32,25 @@ export const jobResponse = t.Intersect([
   }),
 ]);
 
+export const jobEventResponse = t.Object({
+  jobAddress: t.Nullable(t.String()),
+  nodeAddress: t.Nullable(t.String()),
+  marketAddress: t.Nullable(t.String()),
+  runAddress: t.Nullable(t.String()),
+  type: t.String(),
+  signature: t.String(),
+  instructionIndex: t.Number(),
+  slot: t.Nullable(t.Number()),
+  blockTime: t.Nullable(t.Number()),
+  data: t.Nullable(t.Any()),
+});
+
+export const jobEventsResponse = t.Array(jobEventResponse);
+
 export type GetJobByIdParams = typeof getByAddressParams.static;
 export type JobResponse = typeof jobResponse.static;
 export type JobBatchItemResponse = typeof jobBatchItemResponse.static;
+export type JobEventResponse = typeof jobEventResponse.static;
 
 export enum JobState {
   QUEUED = "QUEUED",

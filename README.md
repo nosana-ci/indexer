@@ -21,6 +21,7 @@ Constant labels on every metric:
 | `cron_runs_total{job,status}`, `cron_run_duration_seconds{job}` | — | — | ✓ | ✓ |
 | `indexer_events_total{event_type}`, `indexer_event_duration_seconds{event_type}`, `indexer_event_errors_total{event_type}` | — | ✓ | — | ✓ |
 | `indexer_websocket_connected`, `indexer_reconnect_attempts_total{reason}`, `indexer_last_activity_timestamp_seconds` | — | ✓ | — | ✓ |
+| `job_event_signatures_ingested_total{source}`, `job_event_transactions_processed_total`, `job_events_inserted_total`, `job_event_process_errors_total`, `job_event_pending_transactions`, `job_event_logs_connected` | — | — | ✓ | ✓ |
 | `nosana_stats_nos_staked`, `nosana_stats_xnos_staked`, `nosana_stats_stakers_count`, `nosana_stats_nos_price_usd`, etc. | ✓ (read) | — | ✓ (read) | ✓ (read) |
 
 ### Local scrape
@@ -33,11 +34,22 @@ curl http://localhost:3000/metrics
 
 This service is currently NOT scraped — a follow-up MR will add a ServiceMonitor / Pod annotation in `apps/platform/k8s/`.
 
+### Recommended alerts (event pipeline)
+
+Once scraped, add these to the monitoring config (`apps/platform/k8s/`). Job-event
+metrics are only present in `cron`/`all` modes:
+
+- **Logs subscription down** — `job_event_logs_connected == 0` for > 5m (ingestion falls back to the poll; not critical, but worth knowing).
+- **Decode backlog growing** — `job_event_pending_transactions` trending up over 30m (processor not keeping up, or a stuck signature).
+- **Processing errors** — `rate(job_event_process_errors_total[10m]) > 0` sustained (RPC/decoder trouble).
+- **Ingestion stalled** — `rate(job_event_signatures_ingested_total[15m]) == 0` while the program is active (both logs and poll are failing).
+
 ## What it does
 
 - **Live indexing**: Connects to Nosana via WebSocket (`monitorDetailed`) and writes job, market, and run account updates to the database as they happen on-chain.
 - **Batch sync**: Runs periodic “GPA” (get program accounts) for all jobs and markets to backfill and catch up.
 - **Job processing**: Fetches IPFS job definitions and results, resolves `listedAt` from chain history, and computes USD reward per hour using NOS price.
+- **Program events**: Ingests every Nosana Jobs program transaction signature into `program_transactions` — live via a `logsNotifications` subscription, a periodic `getSignaturesForAddress` poll as the reliable backstop, and a historical backfill that walks the whole program history. The poll tracks its own watermark in `indexer_cursors` rather than reading the newest stored signature, so a signature the subscription lands after downtime cannot make it skip the outage window; a descent too large for one poll resumes where it stopped. A processor then decodes each transaction into `program_events`: one row per instruction with its `type` and whichever of `job_address` / `node_address` / `market_address` it references (job lifecycle — list, delist, work/pickup, extend, end/stop, finish, complete — plus node-queue and market ops), so per-job, per-node and per-market questions are plain queries. Run-bearing instructions also record `run_address` from their accounts, so a pickup whose run account has since closed still gets its job and node filled in from the other events on that run. A job's timeline is exposed at `GET /jobs/:address/events`. Every ingest path archives signatures older than the two-week decode window, so they are stored but never queued for decoding; a signature the RPC cannot serve is retried a few times and then parked as `unavailable` rather than blocking the queue behind it.
 - **Daily aggregates**: Maintains `daily_earnings` (per node/market) and `daily_job_spend` (per project/market) for completed jobs.
 - **Stats**: Refreshes platform stats (staking, volume, etc.) and serves spending/earning history for projects and nodes.
 - **Optional job cleaner**: When configured, can clean stuck jobs using an admin signer.
@@ -68,6 +80,7 @@ Base URL is the server root (e.g. `http://localhost:3000`). All job and stats en
 | `GET` | `/jobs/count` | Total job count and counts per state (QUEUED, RUNNING, COMPLETED, STOPPED). Query: `market`, `node`, `project`, `payer`. |
 | `POST` | `/jobs/batch` | Get multiple jobs by address. Body: `{ "addresses": string[], "limit"?: number }` (max 100 addresses; returns subset of fields, no `jobDefinition`/`jobResult`). |
 | `GET` | `/jobs/:address` | Get a single job by address (full details). |
+| `GET` | `/jobs/:address/events` | Decoded program-event timeline for a job, oldest first. |
 
 ### Stats (`/stats`)
 

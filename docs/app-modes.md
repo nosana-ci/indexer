@@ -41,12 +41,16 @@ processing. Handles:
 - `job-processing` (every 2 min) — process pending jobs (definitions, results, USD)
 - `refresh-stats` (every 5 min) — update staking and NOS token statistics
 - `job-cleaner` (every 6 hours) — clean old completed jobs from blockchain
+- `program-signatures-poll` (every min) — go-forward signature ingestion (backstop)
+- `program-signatures-backfill` (every min) — walks program history until genesis, then no-ops
+- `process-transactions` (every min) — decodes pending transactions into `program_events`
 
-**Components**: All 4 cron jobs, `/health` endpoint;
+**Components**: All 7 cron jobs, the program logs subscription, `/health` endpoint;
 **Scaling**: Single replica, `Recreate` deployment strategy;
 **Availablity**: Does not need to be available at all times. No data is lost if it goes down as long
 as it shuts down gracefully. Long periods of downtime will affect have a negative effect on the application;
-**Requires**: `CLEAN_ADMIN_PRIVATE_KEY` env var for job-cleaner (optional)
+**Requires**: `CLEAN_ADMIN_PRIVATE_KEY` env var for job-cleaner (optional); `SOLANA_WS` for the
+program logs subscription — without it only the periodic poll ingests signatures
 
 ## Health endpoint
 
