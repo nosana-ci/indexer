@@ -12,6 +12,7 @@ const { mockJobsService } = vi.hoisted(() => {
     getJobsCount: vi.fn(),
     getJobsByAddresses: vi.fn(),
     getByAddress: vi.fn(),
+    getEventsByAddress: vi.fn(),
   };
   return { mockJobsService };
 });
@@ -27,6 +28,7 @@ vi.mock('../../../src/modules/jobs/service', () => ({
     getJobsCount = mockJobsService.getJobsCount;
     getJobsByAddresses = mockJobsService.getJobsByAddresses;
     getByAddress = mockJobsService.getByAddress;
+    getEventsByAddress = mockJobsService.getEventsByAddress;
   },
 }));
 
@@ -283,6 +285,55 @@ describe('Jobs Routes', () => {
 
       expect(res.status).toBe(200);
       expect(body).toEqual(expectedNodes);
+    });
+  });
+
+  describe('GET /jobs/:address/events', () => {
+    it('returns the job event timeline from the service', async () => {
+      const events = [
+        {
+          jobAddress: testJobAddr1,
+          nodeAddress: null,
+          marketAddress: 'M',
+          runAddress: null,
+          type: 'List',
+          signature: 'sigList',
+          instructionIndex: 0,
+          slot: 100,
+          blockTime: 1_700_000_000,
+          data: null,
+        },
+        {
+          jobAddress: testJobAddr1,
+          nodeAddress: null,
+          marketAddress: 'M',
+          runAddress: null,
+          type: 'Extend',
+          signature: 'sigExtend',
+          instructionIndex: 0,
+          slot: 200,
+          blockTime: 1_700_000_100,
+          data: { timeout: 7200 },
+        },
+      ];
+      mockJobsService.getEventsByAddress.mockResolvedValue(events);
+
+      const res = await app.handle(new Request(`${BASE_URL}/jobs/${testJobAddr1}/events`));
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(mockJobsService.getEventsByAddress).toHaveBeenCalledWith(testJobAddr1);
+      expect(body).toHaveLength(2);
+      expect(body[1].data).toEqual({ timeout: 7200 });
+    });
+
+    it('returns an empty array for a job with no indexed events', async () => {
+      mockJobsService.getEventsByAddress.mockResolvedValue([]);
+
+      const res = await app.handle(new Request(`${BASE_URL}/jobs/${testJobAddr2}/events`));
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual([]);
     });
   });
 

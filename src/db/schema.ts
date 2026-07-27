@@ -1,4 +1,7 @@
 export * from "./tables/jobs";
+export * from "./tables/program-transactions";
+export * from "./tables/indexer-cursors";
+export * from "./tables/program-events";
 export * from "./tables/daily-earnings";
 export * from "./tables/daily-job-spend";
 export * from "./tables/stats";

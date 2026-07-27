@@ -3,6 +3,7 @@ import {
   getByAddressParams,
   jobResponse,
   jobBatchItemResponse,
+  jobEventsResponse,
   GetJobsQuery,
   GetJobsCountQuery,
   GetLongRunningJobsQuery,
@@ -164,6 +165,22 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
         summary: "Get jobs by addresses",
         description:
           "Retrieve multiple jobs by a list of addresses (full job fields except jobDefinition and jobResult). Maximum of 100 addresses per request.",
+        tags: ["Jobs"],
+      },
+    },
+  )
+  .get(
+    "/:address/events",
+    async ({ params: { address }, jobsService }) => {
+      return await jobsService.getEventsByAddress(address);
+    },
+    {
+      params: getByAddressParams,
+      response: { 200: jobEventsResponse },
+      detail: {
+        summary: "Get a job's on-chain transaction events",
+        description:
+          "Returns the decoded Nosana Jobs instructions recorded for a job (list, delist, work/pickup, extend, end/stop, finish, complete), oldest first, with typed event data in `data` (e.g. Extend → { timeout } where timeout is the job's new absolute timeout after extending). Events are indexed going forward only, so an older job may return an empty list.",
         tags: ["Jobs"],
       },
     },

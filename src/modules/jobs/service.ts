@@ -3,6 +3,7 @@ import { NotFoundError } from "elysia";
 import { eq, gt, gte, lt, lte, count, sql } from "drizzle-orm";
 import { jobs, type SelectJob } from "../../db/tables/jobs";
 import JobsRepository from "../../repositories/jobs.repository";
+import ProgramEventsRepository from "../../repositories/program-events.repository";
 import { AppError } from "../../errors";
 import {
   GroupBy,
@@ -15,7 +16,7 @@ import {
   type StatsTimeSeries,
   jobStateMappingReverse,
 } from "./model";
-import type { JobResponse, JobBatchItemResponse } from "./model";
+import type { JobResponse, JobBatchItemResponse, JobEventResponse } from "./model";
 
 export class JobsService {
   private statsCache?: StatsType;
@@ -27,9 +28,11 @@ export class JobsService {
     }
   >();
   private readonly jobsRepo: JobsRepository;
+  private readonly programEventsRepo: ProgramEventsRepository;
 
   constructor() {
     this.jobsRepo = new JobsRepository();
+    this.programEventsRepo = new ProgramEventsRepository();
   }
 
   async getByAddress(address: string): Promise<JobResponse> {
@@ -40,6 +43,26 @@ export class JobsService {
     }
 
     return this.mapToResponse(job);
+  }
+
+  /**
+   * Returns a job's on-chain transaction events, oldest first. Events are only
+   * indexed going forward, so an older job may legitimately return an empty list.
+   */
+  async getEventsByAddress(address: string): Promise<JobEventResponse[]> {
+    const events = await this.programEventsRepo.findByJob(address);
+    return events.map((e) => ({
+      jobAddress: e.jobAddress,
+      nodeAddress: e.nodeAddress,
+      marketAddress: e.marketAddress,
+      runAddress: e.runAddress,
+      type: e.type,
+      signature: e.signature,
+      instructionIndex: e.instructionIndex,
+      slot: e.slot,
+      blockTime: e.blockTime,
+      data: e.data ?? null,
+    }));
   }
 
   async getJobs(query: typeof GetJobsQuery.static) {

@@ -5,3 +5,4 @@ import "./jobs/job-stats.test.js";
 import "./jobs/job-lifecycle.test.js";
 import "./jobs/job-immediate-start.test.js";
 import "./jobs/job-delist.test.js";
+import "./jobs/job-events.test.js";
