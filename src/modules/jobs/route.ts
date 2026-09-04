@@ -181,7 +181,7 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
         summary: "Get a job's on-chain transaction events",
         description:
           "Returns the decoded Nosana Jobs instructions recorded for a job (list, delist, work/pickup, extend, end/stop, finish, complete), oldest first, with typed event data in `data` (e.g. Extend → { timeout } where timeout is the job's new absolute timeout after extending). Events are indexed going forward only, so an older job may return an empty list.",
-        tags: ["Jobs"],
+        tags: ["Jobs", "mcp"],
       },
     },
   )
@@ -201,7 +201,7 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
       detail: {
         summary: "Get job by address",
         description: "Retrieve a job account by its address",
-        tags: ["Jobs"],
+        tags: ["Jobs", "mcp"],
       },
     },
   );
