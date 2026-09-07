@@ -17,6 +17,28 @@ import {
   jobStateMappingReverse,
 } from "./model";
 import type { JobResponse, JobBatchItemResponse, JobEventResponse } from "./model";
+import {
+  findMatchedAtListTime,
+  nodeOnRun,
+  syntheticPickup,
+  type DerivedProgramEvent,
+} from "../../events/pickup";
+
+// `jobs.node` holds the zero address until a job is actually matched.
+const SYSTEM_PROGRAM_ADDRESS = "11111111111111111111111111111111";
+
+const toEventResponse = (e: DerivedProgramEvent): JobEventResponse => ({
+  jobAddress: e.jobAddress,
+  nodeAddress: e.nodeAddress,
+  marketAddress: e.marketAddress,
+  runAddress: e.runAddress,
+  type: e.type,
+  signature: e.signature,
+  instructionIndex: e.instructionIndex,
+  slot: e.slot,
+  blockTime: e.blockTime,
+  data: e.data ?? null,
+});
 
 export class JobsService {
   private statsCache?: StatsType;
@@ -48,21 +70,36 @@ export class JobsService {
   /**
    * Returns a job's on-chain transaction events, oldest first. Events are only
    * indexed going forward, so an older job may legitimately return an empty list.
+   *
+   * A job matched at list time also carries a derived pickup — see
+   * `syntheticPickup`.
    */
   async getEventsByAddress(address: string): Promise<JobEventResponse[]> {
     const events = await this.programEventsRepo.findByJob(address);
-    return events.map((e) => ({
-      jobAddress: e.jobAddress,
-      nodeAddress: e.nodeAddress,
-      marketAddress: e.marketAddress,
-      runAddress: e.runAddress,
-      type: e.type,
-      signature: e.signature,
-      instructionIndex: e.instructionIndex,
-      slot: e.slot,
-      blockTime: e.blockTime,
-      data: e.data ?? null,
-    }));
+
+    const matchedList = findMatchedAtListTime(events);
+    if (!matchedList) return events.map(toEventResponse);
+
+    const node = nodeOnRun(events, matchedList.runAddress) ?? (await this.matchedNode(address));
+    if (!node) return events.map(toEventResponse);
+
+    return events
+      .flatMap<DerivedProgramEvent>((e) =>
+        e === matchedList ? [e, syntheticPickup(matchedList, node)] : [e],
+      )
+      .map(toEventResponse);
+  }
+
+  /**
+   * The account-state pipeline's node, the only source for a job matched at
+   * list time and then stopped via `end`: unlike `finish`, `end` is signed by
+   * the poster, so no instruction records the node. Guarded against the zero
+   * address a never-matched job holds there.
+   */
+  private async matchedNode(address: string): Promise<string | null> {
+    const job = await this.jobsRepo.findByAddress(address);
+    if (!job || job.node === SYSTEM_PROGRAM_ADDRESS) return null;
+    return job.node;
   }
 
   async getJobs(query: typeof GetJobsQuery.static) {

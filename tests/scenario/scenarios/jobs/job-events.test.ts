@@ -64,6 +64,9 @@ createFlow("Job events: list is recorded", (step) => {
 
   step("a List event is indexed with tx metadata", async () => {
     const events = await pollUntilTypes(jobAddress.toString(), ["List"]);
+    // Exact sequence, not arrayContaining: catches a spurious extra event
+    // (e.g. a duplicate synthesized Work) that a subset check would miss.
+    expect(events.map((e) => e.type)).toEqual(["List"]);
     const list = eventOf(events, "List");
     expect(list.jobAddress).toBe(jobAddress.toString());
     expect(list.signature).toBeTruthy();
@@ -90,6 +93,10 @@ createFlow("Job events: pickup, extend and finish", (step) => {
 
   step("List and Work events are indexed, Work carries the node", async () => {
     const events = await pollUntilTypes(jobAddress.toString(), ["List", "Work"]);
+    // This job is a plain job-queue pickup (listed into an empty market, node
+    // joins after) — its List's run is never referenced by the real Work, so
+    // there must be exactly one Work here, not a spurious second one.
+    expect(events.map((e) => e.type)).toEqual(["List", "Work"]);
     expect(eventOf(events, "Work").nodeAddress).toBe(nodeAddress);
   });
 
@@ -104,6 +111,7 @@ createFlow("Job events: pickup, extend and finish", (step) => {
 
   step("an Extend event is indexed with the new timeout", async () => {
     const events = await pollUntilTypes(jobAddress.toString(), ["List", "Work", "Extend"]);
+    expect(events.map((e) => e.type)).toEqual(["List", "Work", "Extend"]);
     // The extend instruction encodes the job's new absolute timeout (original +
     // extension), so it must be a number at least as large as the extension.
     const timeout = eventOf(events, "Extend").data?.timeout;
@@ -116,6 +124,7 @@ createFlow("Job events: pickup, extend and finish", (step) => {
     await finishJob(jobAddress.toString(), nodeClient);
 
     const events = await pollUntilTypes(jobAddress.toString(), ["List", "Work", "Extend", "Finish"]);
+    expect(events.map((e) => e.type)).toEqual(["List", "Work", "Extend", "Finish"]);
     const blockTimes = events.map((e) => e.blockTime ?? 0);
     expect(blockTimes).toEqual([...blockTimes].sort((a, b) => a - b));
   });
@@ -145,7 +154,7 @@ createFlow("Job events: delist is retained after the job row is removed", (step)
       .toBe(404);
 
     const events = await pollUntilTypes(jobAddress.toString(), ["List", "Delist"]);
-    expect(events.map((e) => e.type)).toContain("Delist");
+    expect(events.map((e) => e.type)).toEqual(["List", "Delist"]);
   });
 });
 
@@ -169,6 +178,7 @@ createFlow("Job events: poster stops a running job (End)", (step) => {
     const instruction = await client.jobs.end({ job: toAddress(jobAddress.toString()) });
     expect(await client.solana.buildSignAndSend(instruction)).not.toBeNull();
 
-    await pollUntilTypes(jobAddress.toString(), ["List", "Work", "End"]);
+    const events = await pollUntilTypes(jobAddress.toString(), ["List", "Work", "End"]);
+    expect(events.map((e) => e.type)).toEqual(["List", "Work", "End"]);
   });
 });

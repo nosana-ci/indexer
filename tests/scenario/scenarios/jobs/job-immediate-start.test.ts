@@ -74,4 +74,30 @@ createFlow("Job in market with queued node starts immediately", (step) => {
     expect(listedJob.listedAt).toBeGreaterThanOrEqual(listedAtTimestamp - 30);
     expect(listedJob.listedAt).toBeLessThanOrEqual(listedAtTimestamp + 30);
   });
+
+  step("the List event carries the node, and a synthetic Work event stands in for the pickup", async () => {
+    // A node matched at list time produces no real Work instruction — the
+    // program matches it inside List — so the decoder reads the node off the
+    // run account and the events endpoint derives a Work from it, flagged via
+    // data.synthetic, for consumers keying "picked up" off type === "Work".
+    await expect
+      .poll(
+        async () => {
+          const response = await fetch(`${backendUrl}/jobs/${jobAddress}/events`);
+          if (response.status !== 200) return [];
+          return (await response.json()) as Array<{
+            type: string;
+            nodeAddress: string | null;
+            data: Record<string, unknown> | null;
+          }>;
+        },
+        { interval: 5_000, timeout: 180_000 },
+      )
+      .toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ type: "List", nodeAddress }),
+          expect.objectContaining({ type: "Work", nodeAddress, data: { synthetic: true } }),
+        ]),
+      );
+  });
 });

@@ -180,7 +180,7 @@ const jobsRouter = new Elysia({ prefix: "/jobs" })
       detail: {
         summary: "Get a job's on-chain transaction events",
         description:
-          "Returns the decoded Nosana Jobs instructions recorded for a job (list, delist, work/pickup, extend, end/stop, finish, complete), oldest first, with typed event data in `data` (e.g. Extend → { timeout } where timeout is the job's new absolute timeout after extending). Events are indexed going forward only, so an older job may return an empty list.",
+          "Returns the decoded Nosana Jobs instructions recorded for a job (list, delist, work/pickup, extend, end/stop, finish, complete), oldest first, with typed event data in `data` (e.g. Extend → { timeout } where timeout is the job's new absolute timeout after extending). Events are indexed going forward only, so an older job may return an empty list. \n\nA `Work` event isn't always a real on-chain instruction: a job matched instantly against an already-queued node has no separate Work instruction (the program matches it inside List itself), so one is synthesized so `type === \"Work\"` still marks when the job started running. Synthesized events are flagged with `data.synthetic: true`.",
         tags: ["Jobs", "mcp"],
       },
     },
