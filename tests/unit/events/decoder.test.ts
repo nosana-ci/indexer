@@ -50,8 +50,16 @@ import { JobsClient } from '@nosana/kit';
 
 const fetchMaybeRunAccount = JobsClient.fetchMaybeRunAccount as unknown as ReturnType<typeof vi.fn>;
 
-const makeTx = (instructions: Array<{ programId: string; accounts: string[]; data: string }>) => ({
-  transaction: { message: { instructions } },
+const makeTx = (
+  instructions: Array<{ programId: string; accounts: string[]; data: string }>,
+  meta?: {
+    accountKeys: string[];
+    preBalances: (number | bigint)[];
+    postBalances: (number | bigint)[];
+  },
+) => ({
+  transaction: { message: { instructions, accountKeys: meta?.accountKeys } },
+  meta: meta && { preBalances: meta.preBalances, postBalances: meta.postBalances },
 });
 
 const makeDecoder = () =>
@@ -120,6 +128,105 @@ describe('JobEventDecoder', () => {
     const [event] = await makeDecoder().decode(tx);
 
     expect(event).toMatchObject({ type: 'Work', jobAddress: null, nodeAddress: null, marketAddress: market });
+  });
+
+  it('backfills the node on a List that matched an already-queued node', async () => {
+    fetchMaybeRunAccount.mockResolvedValue({
+      exists: true,
+      data: { job: jobAddress, node: nodeAddress },
+    });
+    // Mirrors real mainnet data: the run account's balance goes from 0 to
+    // funded within this same List transaction — it was just created here.
+    const tx = makeTx(
+      [{ programId: JOBS_PROGRAM, accounts: [jobAddress, market, runAddress], data: 'List' }],
+      { accountKeys: [jobAddress, market, runAddress], preBalances: [0, 0, 0], postBalances: [0, 0, 1_570_584] },
+    );
+
+    const events = await makeDecoder().decode(tx);
+
+    expect(fetchMaybeRunAccount).toHaveBeenCalledWith({}, runAddress);
+    // The node recorded here is what marks the match; the event standing in
+    // for the absent Work is derived at read time, not stored.
+    expect(events).toEqual([
+      {
+        instructionIndex: 0,
+        type: 'List',
+        jobAddress,
+        nodeAddress,
+        marketAddress: market,
+        runAddress,
+        data: null,
+      },
+    ]);
+  });
+
+  it('reads balances that arrive as bigint, which is what the RPC actually returns', async () => {
+    // Regression test: lamports are branded bigints, so a `=== 0` check against
+    // a number is false for every matched List and the node is never read.
+    fetchMaybeRunAccount.mockResolvedValue({
+      exists: true,
+      data: { job: jobAddress, node: nodeAddress },
+    });
+    const tx = makeTx(
+      [{ programId: JOBS_PROGRAM, accounts: [jobAddress, market, runAddress], data: 'List' }],
+      { accountKeys: [jobAddress, market, runAddress], preBalances: [0n, 0n, 0n], postBalances: [0n, 0n, 1_570_584n] },
+    );
+
+    const [list] = await makeDecoder().decode(tx);
+
+    expect(fetchMaybeRunAccount).toHaveBeenCalledWith({}, runAddress);
+    expect(list.nodeAddress).toBe(nodeAddress);
+  });
+
+  it('skips the run lookup for a plain queued List whose balances arrive as bigint too', async () => {
+    fetchMaybeRunAccount.mockResolvedValue({ exists: false });
+    const tx = makeTx(
+      [{ programId: JOBS_PROGRAM, accounts: [jobAddress, market, runAddress], data: 'List' }],
+      { accountKeys: [jobAddress, market, runAddress], preBalances: [0n, 0n, 0n], postBalances: [0n, 0n, 0n] },
+    );
+
+    await makeDecoder().decode(tx);
+
+    expect(fetchMaybeRunAccount).not.toHaveBeenCalled();
+  });
+
+  it('skips the run lookup entirely for a plain queued List — its run address is never touched on-chain', async () => {
+    fetchMaybeRunAccount.mockResolvedValue({ exists: false });
+    // Mirrors real mainnet data for an unmatched List: the run address it was
+    // handed stays untouched (0 lamports before and after) — the node's
+    // eventual Work later creates a *different* run pubkey, not this one.
+    const tx = makeTx(
+      [{ programId: JOBS_PROGRAM, accounts: [jobAddress, market, runAddress], data: 'List' }],
+      { accountKeys: [jobAddress, market, runAddress], preBalances: [0, 0, 0], postBalances: [0, 0, 0] },
+    );
+
+    const events = await makeDecoder().decode(tx);
+
+    expect(fetchMaybeRunAccount).not.toHaveBeenCalled();
+    expect(events).toEqual([
+      { instructionIndex: 0, type: 'List', jobAddress, nodeAddress: null, marketAddress: market, runAddress, data: null },
+    ]);
+  });
+
+  it('still does the run lookup when the tx carries no balance info to check (fail open)', async () => {
+    fetchMaybeRunAccount.mockResolvedValue({ exists: false });
+    const tx = makeTx([
+      { programId: JOBS_PROGRAM, accounts: [jobAddress, market, runAddress], data: 'List' },
+    ]);
+
+    await makeDecoder().decode(tx);
+
+    expect(fetchMaybeRunAccount).toHaveBeenCalledWith({}, runAddress);
+  });
+
+  it('propagates a run account lookup failure so the caller retries the whole transaction', async () => {
+    fetchMaybeRunAccount.mockRejectedValue(new Error('RPC unavailable'));
+    const tx = makeTx(
+      [{ programId: JOBS_PROGRAM, accounts: [jobAddress, market, runAddress], data: 'List' }],
+      { accountKeys: [jobAddress, market, runAddress], preBalances: [0, 0, 0], postBalances: [0, 0, 1_570_584] },
+    );
+
+    await expect(makeDecoder().decode(tx)).rejects.toThrow('RPC unavailable');
   });
 
   it('decodes a node-queue Stop with market + node', async () => {

@@ -78,11 +78,45 @@ interface RawInstruction {
   data?: string;
 }
 
+// The subset of a jsonParsed getTransaction response this decoder reads.
+interface RawTransaction {
+  transaction?: {
+    message?: {
+      instructions?: unknown[];
+      accountKeys?: (string | { pubkey?: string })[];
+    };
+  };
+  meta?: {
+    // Lamports come back as bigint from the RPC, like slot and blockTime.
+    preBalances?: (number | bigint)[];
+    postBalances?: (number | bigint)[];
+  };
+}
+
+/**
+ * Whether the transaction itself created `pubkey` (0 lamports before, funded
+ * after). Verified against mainnet: a List creates its run account only when
+ * it matched an already-queued node — an unmatched List's run address is never
+ * touched, and the node's later Work creates a different one. Fails open to
+ * the RPC read when the transaction doesn't say.
+ */
+function wasCreatedInTx(tx: RawTransaction, pubkey: string): boolean {
+  const keys = tx.transaction?.message?.accountKeys ?? [];
+  const idx = keys.findIndex((k) => (typeof k === "string" ? k : k.pubkey) === pubkey);
+  const pre = tx.meta?.preBalances?.[idx];
+  const post = tx.meta?.postBalances?.[idx];
+  if (idx === -1 || pre == null || post == null) return true;
+  return Number(pre) === 0 && Number(post) > 0;
+}
+
 /**
  * Decodes every identifiable Nosana Jobs instruction in a transaction into a
  * program event with the job / node / market it references. `Work` pickups read
  * the run account to resolve the job and node (a run is 1:1 with a pickup); if
  * the run is already closed, the pickup is still recorded against its market.
+ *
+ * A `List` that matched an already-queued node has that node recorded on it,
+ * which is what marks the match — there is no `Work` instruction in that path.
  */
 export class JobEventDecoder {
   private readonly nosanaClient: NosanaClient;
@@ -94,8 +128,8 @@ export class JobEventDecoder {
   }
 
   async decode(tx: unknown): Promise<DecodedEvent[]> {
-    const instructions = ((tx as { transaction?: { message?: { instructions?: unknown[] } } })
-      ?.transaction?.message?.instructions ?? []) as RawInstruction[];
+    const rawTx = tx as RawTransaction;
+    const instructions = (rawTx.transaction?.message?.instructions ?? []) as RawInstruction[];
 
     const events: DecodedEvent[] = [];
     for (let i = 0; i < instructions.length; i++) {
@@ -111,12 +145,13 @@ export class JobEventDecoder {
         continue; // not an identifiable Nosana Jobs instruction
       }
 
-      events.push(await this.toEvent(i, type, ix.accounts ?? [], dataBytes));
+      events.push(await this.toEvent(rawTx, i, type, ix.accounts ?? [], dataBytes));
     }
     return events;
   }
 
   private async toEvent(
+    tx: RawTransaction,
     instructionIndex: number,
     type: string,
     accounts: string[],
@@ -136,14 +171,23 @@ export class JobEventDecoder {
       data: this.extractData(type, dataBytes),
     };
 
-    // Only Work and QuitAdmin identify their job solely through the run account.
-    // Reading it gives immediate attribution while the run is still open; once it
-    // closes, the run-address join in the processor fills the job in instead, so
-    // this fetch is an optimisation rather than the only source.
-    if (event.runAddress && event.jobAddress == null) {
+    // Work and QuitAdmin identify their job solely via the run account; a
+    // closed run is filled in later by the processor's run-address join. List
+    // needs the same read for its node, an instant match happening inside List
+    // with no separate Work — but only when it actually matched, which
+    // wasCreatedInTx settles without an RPC call for a plain queued List.
+    const needsRunLookup =
+      event.runAddress != null &&
+      (event.jobAddress == null ||
+        (type === "List" && event.nodeAddress == null && wasCreatedInTx(tx, event.runAddress)));
+
+    if (needsRunLookup) {
+      // Left to throw: the caller retries a failed transaction (up to
+      // MAX_DECODE_ATTEMPTS) before parking it, so a transient RPC error gets
+      // a real retry rather than baking in an unenriched event.
       const run = await JobsClient.fetchMaybeRunAccount(
         this.nosanaClient.solana.rpc,
-        address(event.runAddress),
+        address(event.runAddress!),
       );
       if (run?.exists) {
         event.jobAddress = run.data.job.toString();

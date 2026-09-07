@@ -23,6 +23,10 @@ const MAX_SIGNATURE_LENGTH = 128;
  * `job_address` set; node-queue events (Stop) and market events (Open, Close,
  * Update) set node/market instead. `data` holds typed per-event fields
  * (e.g. the new timeout for Extend).
+ *
+ * Strictly on-chain instructions: a job matched at list time has no `Work` to
+ * record, and the pickup standing in for it is derived when a timeline is
+ * served — see JobsService.getEventsByAddress.
  */
 export const programEvents = pgTable(
   "program_events",

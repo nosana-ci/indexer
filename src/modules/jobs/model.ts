@@ -37,12 +37,18 @@ export const jobEventResponse = t.Object({
   nodeAddress: t.Nullable(t.String()),
   marketAddress: t.Nullable(t.String()),
   runAddress: t.Nullable(t.String()),
-  type: t.String(),
+  type: t.String({
+    description:
+      'Instruction type (List, Delist, Work, Extend, End, Finish, Complete, ...). "Work" isn\'t always a real on-chain instruction: a job matched instantly against an already-queued node has none, so one is synthesized — see `data.synthetic`.',
+  }),
   signature: t.String(),
   instructionIndex: t.Number(),
   slot: t.Nullable(t.Number()),
   blockTime: t.Nullable(t.Number()),
-  data: t.Nullable(t.Any()),
+  data: t.Nullable(t.Any(), {
+    description:
+      "Typed per-event fields (e.g. Extend -> { timeout }). A synthesized Work event (see `type`) carries { synthetic: true } here instead of real instruction data.",
+  }),
 });
 
 export const jobEventsResponse = t.Array(jobEventResponse);
