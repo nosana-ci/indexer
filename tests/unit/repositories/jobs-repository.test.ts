@@ -2,15 +2,16 @@ import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockExecute } = vi.hoisted(() => ({
+const { mockExecute, mockClientQuery } = vi.hoisted(() => ({
   mockExecute: vi.fn(),
+  mockClientQuery: vi.fn(),
 }));
 
 vi.mock("../../../src/db/client", async () => {
   const { drizzle } = await import("drizzle-orm/node-postgres");
   const schema = await import("../../../src/db/schema");
 
-  const db = Object.assign(drizzle({ client: {} as never, schema }), {
+  const db = Object.assign(drizzle({ client: { query: mockClientQuery } as never, schema }), {
     execute: mockExecute,
   });
 
@@ -70,5 +71,23 @@ describe("JobsRepository.getDurationBucketsSince", () => {
     expect(query.params).toContain(1);
     expect(query.params).toContain(2);
     expect(query.params).toContain(0);
+  });
+});
+describe("JobsRepository.getRunningNodes", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("selects distinct running nodes across all markets", async () => {
+    mockClientQuery.mockResolvedValueOnce({ rows: [["NodeA"], ["NodeB"]] });
+
+    const repository = new JobsRepository();
+    const result = await repository.getRunningNodes(1);
+
+    expect(result).toEqual([{ node: "NodeA" }, { node: "NodeB" }]);
+    const [{ text }, params] = mockClientQuery.mock.calls[0] as [{ text: string }, unknown[]];
+    expect(text).toBe('select distinct "node" from "jobs" where "jobs"."state" = $1');
+    expect(text).not.toContain('"market"');
+    expect(params).toEqual([1]);
   });
 });
