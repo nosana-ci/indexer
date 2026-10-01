@@ -38,6 +38,7 @@ vi.mock('@nosana/kit', () => ({
 import {
   jobsAreEqual,
   convertJobToInsertJob,
+  convertMarketToInsertMarket,
   checkJobExists,
   sleep,
 } from '../../../src/indexer/utils';
@@ -414,6 +415,47 @@ describe('Indexer Utils', () => {
 
         expect(result.ipfsJob).toBe(emptyString);
         expect(result.node).toBe(emptyString);
+      });
+    });
+  });
+
+  describe('convertMarketToInsertMarket', () => {
+    const addr = (a: string) => ({ toString: () => a });
+
+    it('maps a market account to a markets row, preserving queue order', () => {
+      const market = {
+        address: addr(testMarketAddress),
+        authority: addr('Authority1'),
+        queueType: marketQueueNodeType,
+        queue: [addr('NodeB'), addr('NodeA')],
+        jobPrice: BigInt(250),
+        jobTimeout: BigInt(secondsInAnHour),
+        jobExpiration: BigInt(secondsInTwoHours),
+        jobType: 0,
+      };
+
+      expect(convertMarketToInsertMarket(market as never, 1_700_000_000)).toEqual({
+        address: testMarketAddress,
+        authority: 'Authority1',
+        queueType: marketQueueNodeType,
+        queue: ['NodeB', 'NodeA'],
+        queueLength: 2,
+        jobPrice: 250,
+        jobTimeout: secondsInAnHour,
+        jobExpiration: secondsInTwoHours,
+        jobType: 0,
+        updatedAt: 1_700_000_000,
+      });
+    });
+
+    it('stores an empty queue with length 0', () => {
+      const market = { address: addr(testMarketAddress), queueType: marketQueueNodeType, queue: [] };
+
+      expect(convertMarketToInsertMarket(market as never, 1)).toMatchObject({
+        queue: [],
+        queueLength: 0,
+        authority: null,
+        jobPrice: null,
       });
     });
   });

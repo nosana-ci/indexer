@@ -91,6 +91,10 @@ const mockDailyJobSpendRepo = {
   upsertWithRecalculation: vi.fn(),
 };
 
+const mockMarketsRepo = {
+  upsert: vi.fn(),
+};
+
 vi.mock('../../../src/repositories/jobs.repository', () => ({
   default: class MockJobsRepository {
     findByAddress = mockJobAccountsRepo.findByAddress;
@@ -115,6 +119,12 @@ vi.mock('../../../src/repositories/daily-job-spend.repository', () => ({
   },
 }));
 
+vi.mock('../../../src/repositories/markets.repository', () => ({
+  default: class MockMarketsRepository {
+    upsert = mockMarketsRepo.upsert;
+  },
+}));
+
 describe('JobProcessor', () => {
   let processor: JobProcessor;
   let mockNosanaClient: ReturnType<typeof createMockNosanaClient>;
@@ -133,6 +143,7 @@ describe('JobProcessor', () => {
     mockJobAccountsRepo.simpleUpdate.mockResolvedValue(undefined);
     mockDailyEarningsRepo.upsertWithRecalculation.mockResolvedValue(undefined);
     mockDailyJobSpendRepo.upsertWithRecalculation.mockResolvedValue(undefined);
+    mockMarketsRepo.upsert.mockResolvedValue(undefined);
     vi.mocked(getNosPrice).mockResolvedValue(0.5);
 
     // Create processor with mocked repositories
@@ -232,6 +243,39 @@ describe('JobProcessor', () => {
       expect(mockJobAccountsRepo.findQueuedByMarket).toHaveBeenCalledWith(
         testMarketAddress
       );
+    });
+
+    it('should upsert the market row (address, queueType, ordered queue) on a MARKET event', async () => {
+      const market = createTestNosanaMarket({
+        address: createMockAddress(testMarketAddress),
+        queueType: marketQueueNodeType,
+        queue: [createMockAddress('NodeA'), createMockAddress('NodeB')],
+      });
+
+      await processor.handleMarketUpdate(market as any);
+
+      expect(mockMarketsRepo.upsert).toHaveBeenCalledTimes(1);
+      expect(mockMarketsRepo.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: testMarketAddress,
+          queueType: marketQueueNodeType,
+          queue: ['NodeA', 'NodeB'],
+          queueLength: 2,
+          updatedAt: expect.any(Number),
+        })
+      );
+    });
+
+    it('should still prune queued jobs when the market upsert fails', async () => {
+      mockMarketsRepo.upsert.mockRejectedValueOnce(new Error(dbErrorMessage));
+      mockJobAccountsRepo.findQueuedByMarket.mockResolvedValue([
+        createTestJobAccount({ address: job1Address }),
+      ]);
+      vi.mocked(checkJobExists).mockResolvedValue(false);
+
+      await expect(processor.handleMarketUpdate(mockMarket as any)).resolves.not.toThrow();
+
+      expect(mockJobAccountsRepo.delete).toHaveBeenCalledWith(job1Address);
     });
 
     it('should handle NODE_QUEUE market type by removing all queued jobs', async () => {
@@ -615,6 +659,23 @@ describe('JobProcessor', () => {
       await processor.marketsGPA();
 
       expect(mockJobAccountsRepo.findQueuedByMarket).toHaveBeenCalledTimes(2);
+    });
+
+    it('should upsert every scanned market', async () => {
+      mockNosanaClient.jobs.markets.mockResolvedValue([
+        createTestNosanaMarket({ address: createMockAddress(marketAddress1) }),
+        createTestNosanaMarket({ address: createMockAddress(marketAddress2) }),
+      ]);
+
+      await processor.marketsGPA();
+
+      expect(mockMarketsRepo.upsert).toHaveBeenCalledTimes(2);
+      expect(mockMarketsRepo.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ address: marketAddress1 })
+      );
+      expect(mockMarketsRepo.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ address: marketAddress2 })
+      );
     });
 
     it('should handle empty markets array', async () => {

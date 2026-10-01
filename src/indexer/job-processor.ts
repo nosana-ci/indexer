@@ -10,9 +10,16 @@ import {
   type JobDefinition,
 } from "@nosana/kit";
 import type { InsertJob, SelectJob } from "../db/tables/jobs";
-import { jobsAreEqual, convertJobToInsertJob, checkJobExists, sleep } from "./utils";
+import {
+  jobsAreEqual,
+  convertJobToInsertJob,
+  convertMarketToInsertMarket,
+  checkJobExists,
+  sleep,
+} from "./utils";
 import { getNosPrice } from "../services/price.service";
 import JobsRepository from "../repositories/jobs.repository";
+import MarketsRepository from "../repositories/markets.repository";
 import DailyEarningsRepository from "../repositories/daily-earnings.repository";
 import DailyJobSpendRepository from "../repositories/daily-job-spend.repository";
 import parentLogger from "../logger";
@@ -24,17 +31,20 @@ export class JobProcessor {
   private jobsRepo: JobsRepository;
   private dailyEarningsRepo: DailyEarningsRepository;
   private dailyJobSpendRepo: DailyJobSpendRepository;
+  private marketsRepo: MarketsRepository;
 
   constructor(
     nosanaClient: NosanaClient,
     jobsRepo?: JobsRepository,
     dailyEarningsRepo?: DailyEarningsRepository,
     dailyJobSpendRepo?: DailyJobSpendRepository,
+    marketsRepo?: MarketsRepository,
   ) {
     this.nosanaClient = nosanaClient;
     this.jobsRepo = jobsRepo || new JobsRepository();
     this.dailyEarningsRepo = dailyEarningsRepo || new DailyEarningsRepository();
     this.dailyJobSpendRepo = dailyJobSpendRepo || new DailyJobSpendRepository();
+    this.marketsRepo = marketsRepo || new MarketsRepository();
   }
 
   async handleRunUpdate(runAccount: Run): Promise<SelectJob | null> {
@@ -60,6 +70,16 @@ export class JobProcessor {
   }
 
   async handleMarketUpdate(marketAccount: Market): Promise<void> {
+    // Persist the market's current state (queue, queue type, pricing) so the
+    // markets table reflects live on-chain queues.
+    try {
+      await this.marketsRepo.upsert(
+        convertMarketToInsertMarket(marketAccount, Math.floor(Date.now() / 1000)),
+      );
+    } catch (error) {
+      logger.error({ err: error, market: marketAccount.address }, "Failed to persist market state");
+    }
+
     const queuedJobsFromDB = await this.jobsRepo.findQueuedByMarket(
       marketAccount.address.toString(),
     );

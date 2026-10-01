@@ -2,6 +2,7 @@ import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { swagger } from "@elysiajs/swagger";
 import { jobsRouter } from "./modules/jobs/index.js";
+import { marketsRouter } from "./modules/markets/index.js";
 import { statsRouter, type StatsService } from "./modules/stats/index.js";
 import logger from "./logger.js";
 import { AppError } from "./errors.js";
@@ -26,6 +27,7 @@ export const createApp = (options?: { statsService?: StatsService }) => {
           },
           tags: [
             { name: "Jobs", description: "Job account and listing endpoints" },
+            { name: "Markets", description: "Market state, queues, and running counts" },
             { name: "Stats", description: "Aggregated statistics endpoints" },
           ],
         },
@@ -73,7 +75,8 @@ export const createApp = (options?: { statsService?: StatsService }) => {
 
       return { message: "Internal server error" };
     })
-    .use(jobsRouter);
+    .use(jobsRouter)
+    .use(marketsRouter);
 
   if (options?.statsService) {
     app.use(statsRouter(options.statsService));

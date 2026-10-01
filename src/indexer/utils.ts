@@ -1,6 +1,24 @@
-import type { Job, NosanaClient } from "@nosana/kit";
+import type { Job, Market, NosanaClient } from "@nosana/kit";
 import { address } from "@nosana/kit";
 import type { InsertJob, SelectJob } from "../db/tables/jobs";
+import type { InsertMarket } from "../db/tables/markets";
+
+// Maps a Market account from @nosana/kit to a row for the markets table.
+export function convertMarketToInsertMarket(market: Market, now: number): InsertMarket {
+  const queue = market.queue.map((a) => a.toString());
+  return {
+    address: market.address.toString(),
+    authority: market.authority?.toString() ?? null,
+    queueType: Number(market.queueType),
+    queue,
+    queueLength: queue.length,
+    jobPrice: market.jobPrice != null ? Number(market.jobPrice) : null,
+    jobTimeout: market.jobTimeout != null ? Number(market.jobTimeout) : null,
+    jobExpiration: market.jobExpiration != null ? Number(market.jobExpiration) : null,
+    jobType: market.jobType != null ? Number(market.jobType) : null,
+    updatedAt: now,
+  };
+}
 
 // Helper function to compare job from database with Job from nosana/kit
 export function jobsAreEqual(dbJob: SelectJob, nosanaJob: Job): boolean {

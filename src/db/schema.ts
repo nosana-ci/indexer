@@ -1,4 +1,5 @@
 export * from "./tables/jobs";
+export * from "./tables/markets";
 export * from "./tables/program-transactions";
 export * from "./tables/indexer-cursors";
 export * from "./tables/program-events";

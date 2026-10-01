@@ -36,6 +36,13 @@
       "when": 1785163003499,
       "tag": "0004_program_event_indexing",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790849874496,
+      "tag": "0005_markets",
+      "breakpoints": true
     }
   ]
 }

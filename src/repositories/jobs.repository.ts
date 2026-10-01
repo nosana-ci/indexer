@@ -249,6 +249,14 @@ export default class JobsRepository {
       .execute();
   }
 
+  async getRunningNodes(runningState: number) {
+    return this.db
+      .selectDistinct({ node: jobs.node })
+      .from(jobs)
+      .where(eq(jobs.state, runningState))
+      .execute();
+  }
+
   async findLongRunningJobs(currentTimestamp: number, market?: string, payer?: string) {
     const conditions = [
       eq(jobs.timeEnd, 0),
