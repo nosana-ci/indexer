@@ -25,7 +25,9 @@ export default () => {
       environment: "node",
       include,
       exclude: ["node_modules", "dist"],
-      testTimeout: 1200000,
+      // The longest intended wait in a step is a 180s poll; anything past this
+      // is a hang, and should fail rather than stall the pipeline for 20 minutes.
+      testTimeout: 300_000,
       hookTimeout: 300000,
       reporters: ["verbose"],
       bail: 0,
