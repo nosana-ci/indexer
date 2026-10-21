@@ -56,6 +56,9 @@ services:
       <<: *common-env
       APP_MODE: cron
       PORT: 3005
+      # Index program events every 5s instead of every minute, so the event
+      # scenarios don't wait a minute per step.
+      EVENT_PIPELINE_CRON: '*/5 * * * * *'
 
   blockchain-indexer:
     <<: *common-service

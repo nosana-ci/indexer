@@ -81,6 +81,12 @@ scenario test:
     - export PATH="$HOME/.bun/bin:$PATH"
     - bun install --frozen-lockfile
     - bun run test:scenarios
+  artifacts:
+    # Container logs from the scenario stack, written by the global teardown.
+    when: always
+    paths:
+      - scenario-docker.log
+    expire_in: 1 week
   rules:
     - if: $CI_MERGE_REQUEST_ID
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

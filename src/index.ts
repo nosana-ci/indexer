@@ -206,6 +206,9 @@ if (shouldRunCron(mode) && processor) {
 
 // Program-level event indexing: ingest program tx signatures (go-forward poll
 // + historical backfill), then decode them into job events. Cron mode only.
+// Every minute by default; the scenario stack runs it every few seconds
+// (EVENT_PIPELINE_CRON) so events are indexed without minute-long waits.
+const eventPipelinePattern = process.env.EVENT_PIPELINE_CRON ?? "* * * * *";
 if (shouldRunCron(mode) && nosanaClient) {
   const signaturePoller = new ProgramSignaturePoller(nosanaClient, { metrics: metrics.events });
   const signatureBackfiller = new ProgramSignatureBackfiller(nosanaClient, {
@@ -217,7 +220,7 @@ if (shouldRunCron(mode) && nosanaClient) {
       cron(
         wrapCron({
           name: "program-signatures-poll",
-          pattern: "* * * * *",
+          pattern: eventPipelinePattern,
           protect: true,
           async run() {
             try {
@@ -233,7 +236,7 @@ if (shouldRunCron(mode) && nosanaClient) {
       cron(
         wrapCron({
           name: "program-signatures-backfill",
-          pattern: "* * * * *",
+          pattern: eventPipelinePattern,
           protect: true,
           async run() {
             try {
@@ -249,7 +252,7 @@ if (shouldRunCron(mode) && nosanaClient) {
       cron(
         wrapCron({
           name: "process-transactions",
-          pattern: "* * * * *",
+          pattern: eventPipelinePattern,
           protect: true,
           async run() {
             try {

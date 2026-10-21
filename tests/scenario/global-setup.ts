@@ -4,6 +4,8 @@ const DOCKER_COMPOSE_DIR = `${process.cwd()}/docker`;
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:3003";
 const CRON_URL = process.env.CRON_URL ?? "http://localhost:3005";
 const DOCKER_COMPOSE_TIMEOUT_MS = 60_000;
+// Starting the stack on a cold CI runner pulls every image first.
+const DOCKER_COMPOSE_UP_TIMEOUT_MS = 600_000;
 const HEALTH_TIMEOUT_MS = 120_000;
 const HEALTH_POLL_INTERVAL_MS = 2_000;
 
@@ -74,16 +76,21 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
 
   if (wasRunning) {
     console.log("Dev environment already running — rebuilding to pick up changes");
-    dc("up -d --build --wait");
+    dc("up -d --build --wait", DOCKER_COMPOSE_UP_TIMEOUT_MS);
   } else {
     console.log("Dev environment not running — starting it");
-    dc("up -d --build --wait");
+    dc("up -d --build --wait", DOCKER_COMPOSE_UP_TIMEOUT_MS);
   }
 
   await waitForHealthy();
   console.log("All services healthy");
 
   return async () => {
+    // In CI, keep every container's logs (saved as a job artifact) before the
+    // stack goes away, so a failed or stuck scenario can be diagnosed.
+    if (process.env.CI) {
+      dc("logs --no-color --timestamps > ../scenario-docker.log");
+    }
     if (!wasRunning) {
       console.log("Stopping dev environment (tests started it)");
       dc("down");
