@@ -46,7 +46,11 @@ createFlow("Job statistics", (step) => {
   });
 
   step("GET /jobs/stats/timestamps returns timestamp data", async () => {
-    const response = await fetch(`${backendUrl}/jobs/stats/timestamps`);
+    // A period of 12 hours or less is counted live; longer periods read the
+    // job_stats_hourly rollup, which the cron refreshes every 5 minutes, too
+    // late for jobs started moments ago. Counts started jobs (timeStart > 0),
+    // like the running job from the running-jobs scenario; a queued job has none.
+    const response = await fetch(`${backendUrl}/jobs/stats/timestamps?period=3600`);
     expect(response.status).toBe(200);
 
     const body = await response.json();

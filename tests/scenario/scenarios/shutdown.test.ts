@@ -32,8 +32,9 @@ createFlow('Graceful shutdown', (step) => {
     // Wait for bun to shut down, which causes the container to stop
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    // Verify graceful shutdown via container logs
-    const logs = dc(`logs ${CRON_SERVICE} --tail=30`);
+    // Verify graceful shutdown via container logs. Pretty logs take several
+    // lines per entry and shutdown logs one per cron job, so read well back.
+    const logs = dc(`logs ${CRON_SERVICE} --tail=300`);
     expect(logs).toContain('Shutting down gracefully');
     expect(logs).toContain('Stopped cron scheduling');
     expect(logs).toContain('Shutdown complete');
