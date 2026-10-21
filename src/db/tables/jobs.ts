@@ -41,6 +41,11 @@ export const jobs = pgTable(
     durationCoverIdx: index("idx_jobs_duration_cover")
       .on(table.state, table.timeStart, table.timeEnd, table.timeout)
       .where(sql`${table.state} = 1 OR (${table.state} = 2 AND ${table.timeEnd} > 0)`),
+    // Completed jobs by end time: the job_stats_hourly refresh finds the jobs
+    // that ended inside its window without scanning every completed job.
+    completedTimeEndIdx: index("idx_jobs_completed_timeend")
+      .on(table.timeEnd)
+      .where(sql`${table.state} = 2`),
   }),
 );
 

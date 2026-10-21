@@ -1,8 +1,10 @@
-import dayjs from "dayjs";
 import { NotFoundError } from "elysia";
 import { eq, gt, gte, lt, lte, count, sql } from "drizzle-orm";
 import { jobs, type SelectJob } from "../../db/tables/jobs";
 import JobsRepository from "../../repositories/jobs.repository";
+import JobStatsHourlyRepository, {
+  type JobStatsBucketUnit,
+} from "../../repositories/job-stats-hourly.repository";
 import ProgramEventsRepository from "../../repositories/program-events.repository";
 import { AppError } from "../../errors";
 import {
@@ -23,6 +25,11 @@ import {
   syntheticPickup,
   type DerivedProgramEvent,
 } from "../../events/pickup";
+
+// Time series are cheap reads now (the job_stats_hourly rollup, refreshed every
+// 5 minutes, or a live minute aggregate over at most 12 hours), so a short cache
+// just absorbs bursts and keeps every period about as fresh as the rollup.
+const TIMESTAMP_CACHE_TTL_SECONDS = 3 * 60;
 
 // `jobs.node` holds the zero address until a job is actually matched.
 const SYSTEM_PROGRAM_ADDRESS = "11111111111111111111111111111111";
@@ -50,10 +57,12 @@ export class JobsService {
     }
   >();
   private readonly jobsRepo: JobsRepository;
+  private readonly jobStatsRepo: JobStatsHourlyRepository;
   private readonly programEventsRepo: ProgramEventsRepository;
 
   constructor() {
     this.jobsRepo = new JobsRepository();
+    this.jobStatsRepo = new JobStatsHourlyRepository();
     this.programEventsRepo = new ProgramEventsRepository();
   }
 
@@ -477,61 +486,29 @@ export class JobsService {
     return Object.values(nested);
   }
 
+  /**
+   * Jobs started over time: one point per bucket (`x` = bucket start in ms,
+   * `y` = jobs started), newest first, empty buckets left out. Minute buckets
+   * (periods up to 12 hours) are counted live; longer periods add up the
+   * `job_stats_hourly` rollup, so the cost does not grow with the job count.
+   */
   async getTimestamps(period: number) {
     return this.getCachedTimestampSeries("count", period, async () => {
-      const jobRows = await this.jobsRepo.findTimeStartsSince(
-        period ? Math.floor(Date.now() / 1000) - period : 0,
-      );
-      const timeStamps = jobRows.map((job: { timeStart: number }) => job.timeStart);
-      const updatedData: Array<{ x: number; y: number }> = [];
-      const tempDateCollection: Array<string | null> = [];
-      timeStamps
-        .sort((a: number, b: number) => b - a)
-        .forEach((j: number) => {
-          const timestamp = j * 1000;
-          const currentDate = new Date(timestamp);
-          const startDate = new Date(currentDate.getFullYear(), 0, 1);
-          const days = Math.floor(
-            (currentDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000),
-          );
+      const since = period ? Math.floor(Date.now() / 1000) - period : 0;
+      const interval = this.resolveBucketInterval(period);
 
-          const weekNumber = Math.ceil(days / 7);
-          let granularity: string | null;
-          if (period > (365 / 3) * 24 * 3600) {
-            // Bigger than 4 months, group by week
-            granularity = weekNumber + dayjs(timestamp).format("YYYY");
-          } else if (period > 5 * 24 * 3600) {
-            // Bigger than 5 days, group by day
-            granularity = dayjs(timestamp).format("DD/MMM/YYYY");
-          } else if (period > 12 * 3600) {
-            // Bigger than 12 hours, group by hour
-            granularity = dayjs(timestamp).format("HH DD/MMM/YYYY");
-          } else if (period > 0) {
-            // Under 12 hours
-            granularity = dayjs(timestamp).format("HH:mm DD/MMM/YYYY");
-          } else {
-            // All: group by month
-            granularity = dayjs(timestamp).format("MMM/YYYY");
-          }
-          if (granularity && tempDateCollection.includes(granularity)) {
-            const index = tempDateCollection.indexOf(granularity);
-            const element = updatedData[index];
-            updatedData[index] = {
-              x: updatedData[index].x,
-              y: element.y + 1,
-            };
-          } else {
-            tempDateCollection.push(granularity);
-            updatedData.push({
-              x: timestamp,
-              y: 1,
-            });
-          }
-        });
+      const rows: Array<{ bucket: number; jobs: number }> =
+        interval === "minute"
+          ? await this.jobsRepo.countStartsByBucketSince(since, interval)
+          : await this.jobStatsRepo.findBucketsSince(since, interval);
+
+      const data = rows
+        .filter((row) => row.jobs > 0)
+        .map((row) => ({ x: row.bucket, y: row.jobs }));
 
       return {
-        total: jobRows.length,
-        data: updatedData,
+        total: data.reduce((sum, point) => sum + point.y, 0),
+        data,
       };
     });
   }
@@ -539,26 +516,26 @@ export class JobsService {
   /**
    * Returns GPU compute hours (sum of effective job runtime) bucketed over
    * time, mirroring the shape of {@link getTimestamps} but with `y` being
-   * hours instead of a job count. Aggregation happens in Postgres so only one
-   * row per bucket is returned, which stays fast even with millions of jobs.
+   * hours instead of a job count. Minute buckets are aggregated live; longer
+   * periods add up the `job_stats_hourly` rollup.
    */
   async getDurationTimestamps(period: number) {
     return this.getCachedTimestampSeries("duration", period, async () => {
       const since = period ? Math.floor(Date.now() / 1000) - period : 0;
       const interval = this.resolveBucketInterval(period);
 
-      const rows = await this.jobsRepo.getDurationBucketsSince(since, interval);
+      const rows: Array<{ bucket: number; seconds: number }> =
+        interval === "minute"
+          ? await this.jobsRepo.getDurationBucketsSince(since, interval)
+          : await this.jobStatsRepo.findBucketsSince(since, interval);
 
-      let total = 0;
-      const data = rows.map((row) => {
-        const hours = Number(row.seconds) / 3600;
-        total += hours;
-        return { x: Number(row.bucket), y: Math.round(hours * 100) / 100 };
-      });
+      const hours = rows
+        .filter((row) => row.seconds > 0)
+        .map((row) => ({ x: row.bucket, hours: row.seconds / 3600 }));
 
       return {
-        total: Math.round(total * 100) / 100,
-        data,
+        total: Math.round(hours.reduce((sum, point) => sum + point.hours, 0) * 100) / 100,
+        data: hours.map((point) => ({ x: point.x, y: Math.round(point.hours * 100) / 100 })),
       };
     });
   }
@@ -568,7 +545,7 @@ export class JobsService {
    * matching the bucket granularity used by {@link getTimestamps} and the
    * explorer chart.
    */
-  private resolveBucketInterval(period: number): "week" | "day" | "hour" | "minute" | "month" {
+  private resolveBucketInterval(period: number): JobStatsBucketUnit | "minute" {
     if (period > (365 / 3) * 24 * 3600) return "week";
     if (period > 5 * 24 * 3600) return "day";
     if (period > 12 * 3600) return "hour";
@@ -591,29 +568,10 @@ export class JobsService {
 
     const value = await load();
     this.timestampsCache.set(cacheKey, {
-      expiresAt: now + this.getTimestampCacheTtl(period),
+      expiresAt: now + TIMESTAMP_CACHE_TTL_SECONDS,
       value,
     });
     return value;
-  }
-
-  private getTimestampCacheTtl(period: number) {
-    if (period === 0 || period >= 365 * 24 * 3600) {
-      return 24 * 60 * 60;
-    }
-    if (period >= (365 / 4) * 24 * 3600) {
-      return 12 * 60 * 60;
-    }
-    if (period >= (365 / 12) * 24 * 3600) {
-      return 6 * 60 * 60;
-    }
-    if (period >= 7 * 24 * 3600) {
-      return 3 * 60 * 60;
-    }
-    if (period >= 24 * 3600) {
-      return 60 * 60;
-    }
-    return 3 * 60;
   }
 
   private mapToResponse(job: SelectJob): JobResponse {

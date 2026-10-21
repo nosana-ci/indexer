@@ -1,9 +1,6 @@
-import type { SQL } from "drizzle-orm";
-import { PgDialect } from "drizzle-orm/pg-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockExecute, mockClientQuery } = vi.hoisted(() => ({
-  mockExecute: vi.fn(),
+const { mockClientQuery } = vi.hoisted(() => ({
   mockClientQuery: vi.fn(),
 }));
 
@@ -11,9 +8,7 @@ vi.mock("../../../src/db/client", async () => {
   const { drizzle } = await import("drizzle-orm/node-postgres");
   const schema = await import("../../../src/db/schema");
 
-  const db = Object.assign(drizzle({ client: { query: mockClientQuery } as never, schema }), {
-    execute: mockExecute,
-  });
+  const db = drizzle({ client: { query: mockClientQuery } as never, schema });
 
   return {
     getDb: () => db,
@@ -22,55 +17,42 @@ vi.mock("../../../src/db/client", async () => {
 
 import JobsRepository from "../../../src/repositories/jobs.repository";
 
-const dialect = new PgDialect();
-
-function getCompiledQuery() {
-  const [statement] = mockExecute.mock.calls[mockExecute.mock.calls.length - 1] as [SQL];
-  return dialect.sqlToQuery(statement);
-}
-
 describe("JobsRepository.getDurationBucketsSince", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("returns the rows from the database execution", async () => {
-    const rows = [{ bucket: "1717200000000", seconds: "5400" }];
-    mockExecute.mockResolvedValueOnce({ rows });
+  it("returns buckets and seconds as numbers", async () => {
+    mockClientQuery.mockResolvedValueOnce({ rows: [["1717200000000", "5400"]] });
 
     const repository = new JobsRepository();
     const result = await repository.getDurationBucketsSince(3600, "hour");
 
-    expect(result).toEqual(rows);
-    expect(mockExecute).toHaveBeenCalledTimes(1);
+    expect(result).toEqual([{ bucket: 1_717_200_000_000, seconds: 5400 }]);
   });
 
   it("builds SQL that includes running jobs and clips compute to the requested window", async () => {
-    mockExecute.mockResolvedValueOnce({ rows: [] });
+    mockClientQuery.mockResolvedValueOnce({ rows: [] });
 
     const repository = new JobsRepository();
     await repository.getDurationBucketsSince(3600, "hour");
 
-    const query = getCompiledQuery();
+    const [{ text }, params] = mockClientQuery.mock.calls[0] as [{ text: string }, unknown[]];
+    const sqlText = text.replace(/\s+/g, " ");
 
-    expect(query.sql).toContain("WITH spans AS ((select");
-    expect(query.sql).toContain("generate_series(");
-    expect(query.sql).toContain("GREATEST(");
-    expect(query.sql).toContain("LEAST(");
-    expect(query.sql).toContain('GREATEST("time_start", $1) as "s"');
-    expect(query.sql).toContain('"time_start" + "timeout"');
-    expect(query.sql).toContain("CASE WHEN");
-    expect(query.sql).toContain(
-      'THEN LEAST("time_end", extract(epoch FROM now())::bigint) ELSE extract(epoch FROM now())::bigint END',
+    expect(sqlText).toContain("generate_series(");
+    // Clipped to the window, capped at now and the timeout.
+    expect(sqlText).toContain('GREATEST("time_start", $');
+    expect(sqlText).toContain(
+      'CASE WHEN "state" = 2 THEN "time_end" ELSE extract(epoch FROM now())::bigint END',
     );
-    expect(query.sql).toContain('from "jobs" where');
-    expect(query.sql).toContain('CASE WHEN "jobs"."state" = 2 THEN "jobs"."time_end" ELSE extract(epoch FROM now())::bigint END > $6');
-    expect(query.params).toContain(3600);
-    expect(query.params).toContain("hour");
-    expect(query.params).toContain("1 hour");
-    expect(query.params).toContain(1);
-    expect(query.params).toContain(2);
-    expect(query.params).toContain(0);
+    expect(sqlText).toContain('"time_start" + "timeout"');
+    // Running jobs, and completed jobs ending in the window: both index-served.
+    expect(sqlText).toMatch(
+      /"jobs"\."state" = \$\d+ or \("jobs"\."state" = \$\d+ and "jobs"\."time_end" > \$\d+\)/,
+    );
+    expect(sqlText).toContain('order by "bucket_start" desc');
+    expect(params).toEqual(expect.arrayContaining([3600, "hour", "1 hour", 1, 2]));
   });
 });
 describe("JobsRepository.getRunningNodes", () => {

@@ -14,6 +14,7 @@ import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { cron } from "@elysiajs/cron";
 import { StatsService } from "./modules/stats/index.js";
 import JobCleanerService from "./services/job-cleaner.service.js";
+import JobStatsHourlyRepository from "./repositories/job-stats-hourly.repository.js";
 import logger from "./logger.js";
 import { getAppMode, shouldRunApi, shouldRunIndexer, shouldRunCron } from "./config/mode.js";
 import { createMetrics } from "./metrics/index.js";
@@ -282,6 +283,33 @@ if (shouldRunCron(mode) && statsService) {
       }),
     ),
   );
+}
+
+// Job time series rollup: every 5 minutes recompute the last 48 hours (running,
+// finishing and late-indexed jobs change recent hours; the first run on an
+// empty table builds every hour), and rebuild it all at 03:40 to correct jobs
+// indexed later than that.
+if (shouldRunCron(mode)) {
+  const jobStatsRepo = new JobStatsHourlyRepository();
+  const refreshJobStats = (name: string, pattern: string, windowHours: number | null) =>
+    cron(
+      wrapCron({
+        name,
+        pattern,
+        protect: true,
+        async run() {
+          try {
+            const hours = await jobStatsRepo.refresh(windowHours);
+            logger.info({ hours, windowHours }, "Job stats hourly rollup refreshed");
+          } catch (error) {
+            logger.error({ err: error, windowHours }, "Job stats hourly rollup refresh failed");
+          }
+        },
+      }),
+    );
+  app
+    .use(refreshJobStats("refresh-job-stats-hourly", "*/5 * * * *", 48))
+    .use(refreshJobStats("rebuild-job-stats-hourly", "40 3 * * *", null));
 }
 
 if (shouldRunCron(mode) && jobCleanerService) {

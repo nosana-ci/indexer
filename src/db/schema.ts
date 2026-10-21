@@ -5,5 +5,6 @@ export * from "./tables/indexer-cursors";
 export * from "./tables/program-events";
 export * from "./tables/daily-earnings";
 export * from "./tables/daily-job-spend";
+export * from "./tables/job-stats-hourly";
 export * from "./tables/stats";
 export * from "./tables/app-tasks-history";

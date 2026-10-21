@@ -50,6 +50,13 @@
       "when": 1792545201439,
       "tag": "0006_jobs_list_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792568022464,
+      "tag": "0007_job_stats_hourly",
+      "breakpoints": true
     }
   ]
 }

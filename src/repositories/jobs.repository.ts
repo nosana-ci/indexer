@@ -1,4 +1,5 @@
 import { getDb } from "../db/client";
+import { QueryBuilder } from "drizzle-orm/pg-core";
 import { jobs, type InsertJob, type SelectJob } from "../db/tables/jobs";
 import {
   and,
@@ -17,6 +18,9 @@ import {
   sql,
   type SQL,
 } from "drizzle-orm";
+
+// Builds subqueries shared across repositories without needing a database handle.
+const qb = new QueryBuilder();
 
 export default class JobsRepository {
   private get db() {
@@ -299,89 +303,39 @@ export default class JobsRepository {
     });
   }
 
-  async findTimeStartsSince(sinceUnix: number) {
-    return this.db.query.jobs.findMany({
-      where: and(gt(jobs.timeStart, 0), gt(jobs.timeStart, sinceUnix)),
-      columns: {
-        timeStart: true,
-      },
-    });
+  /**
+   * Jobs started per `timeSeriesInterval` bucket after `sinceUnix`, newest
+   * first, with `bucket` as the bucket start in epoch milliseconds. For short
+   * windows only: longer ones read the `job_stats_hourly` rollup.
+   */
+  async countStartsByBucketSince(sinceUnix: number, timeSeriesInterval: string) {
+    // Grouped by position: the unit is a parameter, so a repeated expression
+    // would not match the selected one.
+    return this.db
+      .select({
+        bucket: epochMs(sql`date_trunc(${timeSeriesInterval}, to_timestamp(${jobs.timeStart}))`),
+        jobs: count(),
+      })
+      .from(jobs)
+      .where(gt(jobs.timeStart, sinceUnix))
+      .groupBy(sql`1`)
+      .orderBy(sql`1 DESC`);
   }
 
   /**
-   * Aggregates effective compute runtime (in seconds) into time buckets,
-   * time-weighted across every bucket a job actually spans rather than dumping
-   * a job's whole runtime into its start bucket. This makes the series reflect
-   * real GPU utilisation per period: a job running across several days
-   * contributes to each of those days proportionally.
-   *
-   * Both completed (`state = 2`) and running (`state = 1`) jobs are counted.
-   * The effective interval for a job is
-   * `[time_start, LEAST(end, time_start + timeout)]`, where `end` is `time_end`
-   * for completed jobs and `now()` for running ones — so an in-progress job
-   * contributes up to the present moment but never beyond its timeout.
-   *
-   * A job is included when its effective interval overlaps the requested window
-   * `(sinceUnix, now]`, and its interval is clipped to that window before being
-   * distributed. This means a long job that started before the window still
-   * contributes the portion that falls inside it, and clipping keeps the
-   * lateral `generate_series` fan-out bounded (at most window / bucket rows per
-   * job) so the query stays fast even for fine-grained views.
-   *
-   * `timeSeriesInterval` is a Postgres `date_trunc` unit (e.g. "minute",
-   * "hour", "day", "week", "month").
+   * Effective compute seconds per `timeSeriesInterval` bucket since
+   * `sinceUnix` (see {@link computeSecondsByBucket}), newest first, with
+   * `bucket` as the bucket start in epoch milliseconds.
    */
   async getDurationBucketsSince(sinceUnix: number, timeSeriesInterval: string) {
-    // Bucket width as a Postgres interval literal, e.g. "1 day". date_trunc and
-    // the generate_series step both use the same unit so month-length variance
-    // (28–31 days) is handled correctly.
-    const step = `1 ${timeSeriesInterval}`;
-    const nowSecs = sql`extract(epoch FROM now())::bigint`;
-    const effectiveEnd = sql<number>`LEAST(
-      CASE WHEN ${jobs.state} = 2 THEN LEAST(${jobs.timeEnd}, ${nowSecs}) ELSE ${nowSecs} END,
-      ${jobs.timeStart} + ${jobs.timeout}
-    )`;
-
-    const spansQuery = this.db
+    const buckets = computeSecondsByBucket(sinceUnix, timeSeriesInterval).as("buckets");
+    return this.db
       .select({
-        s: sql<number>`GREATEST(${jobs.timeStart}, ${sinceUnix})`.as("s"),
-        e: effectiveEnd.as("e"),
+        bucket: epochMs(buckets.bucketStart),
+        seconds: sql<number>`${buckets.seconds}`.mapWith(Number),
       })
-      .from(jobs)
-      .where(
-        and(
-          or(eq(jobs.state, 1), and(eq(jobs.state, 2), gt(jobs.timeEnd, 0))),
-          gt(jobs.timeStart, 0),
-          gt(
-            sql<number>`CASE WHEN ${jobs.state} = 2 THEN ${jobs.timeEnd} ELSE ${nowSecs} END`,
-            sinceUnix,
-          ),
-        ),
-      );
-
-    const result = await this.db.execute<{ bucket: string; seconds: string }>(sql`
-      WITH spans AS (${spansQuery})
-      SELECT
-        (extract(epoch FROM bucket_start) * 1000)::bigint AS bucket,
-        sum(
-          GREATEST(
-            LEAST(spans.e, extract(epoch FROM bucket_start + ${step}::interval)::bigint)
-              - GREATEST(spans.s, extract(epoch FROM bucket_start)::bigint),
-            0
-          )
-        )::bigint AS seconds
-      FROM spans
-      CROSS JOIN LATERAL generate_series(
-        date_trunc(${timeSeriesInterval}, to_timestamp(spans.s)),
-        date_trunc(${timeSeriesInterval}, to_timestamp(spans.e)),
-        ${step}::interval
-      ) AS g(bucket_start)
-      WHERE spans.e > spans.s
-      GROUP BY bucket_start
-      ORDER BY bucket_start DESC
-    `);
-
-    return result.rows;
+      .from(buckets)
+      .orderBy(desc(buckets.bucketStart));
   }
 
   // ── Stats aggregation queries ───────────────────────────────────────
@@ -496,4 +450,77 @@ export default class JobsRepository {
       .execute();
   }
   /* eslint-enable @typescript-eslint/no-explicit-any */
+}
+
+/**
+ * Effective compute runtime (seconds) per `unit` bucket, as rows
+ * `(bucket_start, seconds)` to embed in a larger query: the live minute view
+ * and the `job_stats_hourly` refresh both use it, so they cannot drift apart.
+ *
+ * Runtime is time-weighted across every bucket a job spans rather than dumped
+ * into its start bucket, so a job running across several days counts toward
+ * each of them. Completed (`state = 2`) and running (`state = 1`) jobs count;
+ * a job's effective interval is `[time_start, LEAST(end, now, time_start +
+ * timeout)]`, `end` being `time_end` when completed, so a running job counts up
+ * to now but never past its timeout. Jobs whose interval reaches past
+ * `sinceUnix` are clipped to start there, which bounds the `generate_series`
+ * fan-out. The filter is written so running jobs come from
+ * `idx_jobs_state_timestart` and completed ones from
+ * `idx_jobs_completed_timeend`, never a scan of every job.
+ *
+ * `unit` is a Postgres `date_trunc` unit ("minute", "hour", ...); the series
+ * step uses the same unit, so month lengths are handled correctly.
+ */
+export function computeSecondsByBucket(sinceUnix: number, unit: string) {
+  const step = `1 ${unit}`;
+  const now = sql<number>`extract(epoch FROM now())::bigint`;
+
+  const spans = qb
+    .select({
+      s: sql<number>`GREATEST(${jobs.timeStart}, ${sinceUnix})`.as("s"),
+      e: sql<number>`LEAST(
+        CASE WHEN ${jobs.state} = 2 THEN ${jobs.timeEnd} ELSE ${now} END,
+        ${now},
+        ${jobs.timeStart} + ${jobs.timeout}
+      )`.as("e"),
+    })
+    .from(jobs)
+    .where(
+      and(
+        gt(jobs.timeStart, 0),
+        or(eq(jobs.state, 1), and(eq(jobs.state, 2), gt(jobs.timeEnd, sinceUnix))),
+      ),
+    )
+    .as("spans");
+
+  // One row per bucket each job overlaps.
+  const slices = qb
+    .select({
+      s: spans.s,
+      e: spans.e,
+      bucketStart: sql<Date>`generate_series(
+        date_trunc(${unit}, to_timestamp(${spans.s})),
+        date_trunc(${unit}, to_timestamp(${spans.e})),
+        ${step}::interval
+      )`.as("bucket_start"),
+    })
+    .from(spans)
+    .where(gt(spans.e, spans.s))
+    .as("slices");
+
+  return qb
+    .select({
+      bucketStart: slices.bucketStart,
+      seconds: sql<number>`sum(
+        LEAST(${slices.e}, extract(epoch FROM ${slices.bucketStart} + ${step}::interval)::bigint)
+          - GREATEST(${slices.s}, extract(epoch FROM ${slices.bucketStart})::bigint)
+      )::bigint`.as("seconds"),
+    })
+    .from(slices)
+    .groupBy(slices.bucketStart);
+}
+
+/** A timestamp expression as epoch milliseconds (a number). */
+export function epochMs(timestamp: SQL | SQL.Aliased) {
+  return sql<number>`(extract(epoch FROM ${timestamp}) * 1000)::bigint`.mapWith(Number);
 }
