@@ -30,6 +30,21 @@ vi.mock("@nosana/kit", () => ({
   },
 }));
 
+// Mock logger: under load pino's stdout write hits EAGAIN and schedules a
+// 100ms retry timer, which the fake-timer reconnection tests would advance to
+// instead of the backoff timer.
+vi.mock("../../../src/logger", () => {
+  const logger: Record<string, unknown> = {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    fatal: vi.fn(),
+  };
+  logger.child = () => logger;
+  return { default: logger };
+});
+
 // Mock price service
 vi.mock("../../../src/services/price.service", () => ({
   getNosPrice: vi.fn(),
