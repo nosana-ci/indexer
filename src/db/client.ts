@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
+import { getAppMode } from "../config/mode";
 import { buildDatabaseUrlFromParts } from "./connection-string";
 import * as schema from "./schema";
 
@@ -29,6 +30,11 @@ export function getPool() {
     max: Number(process.env.DB_POOL_MAX) || 20,
     idleTimeoutMillis: Number(process.env.DB_POOL_IDLE_TIMEOUT_MS) || 30_000,
     connectionTimeoutMillis: Number(process.env.DB_POOL_CONNECTION_TIMEOUT_MS) || 5_000,
+    // API pods only: Postgres keeps running a query after its HTTP caller gives
+    // up, so a slow public query would hold a pool connection indefinitely. The
+    // indexer and cron run long batch queries and get no limit.
+    statement_timeout:
+      getAppMode() === "api" ? Number(process.env.DB_STATEMENT_TIMEOUT_MS) || 15_000 : undefined,
   });
   return pool;
 }

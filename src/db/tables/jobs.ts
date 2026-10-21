@@ -27,6 +27,11 @@ export const jobs = pgTable(
   },
   (table) => ({
     stateTimeStartIdx: index("idx_jobs_state_timestart").on(table.state, desc(table.timeStart)),
+    // GET /jobs lists newest first, unfiltered or by node/market. Without these
+    // a deep page sorts the whole table on disk and holds a connection for an hour.
+    timeStartIdx: index("idx_jobs_timestart").on(desc(table.timeStart)),
+    nodeTimeStartIdx: index("idx_jobs_node_timestart").on(table.node, desc(table.timeStart)),
+    marketTimeStartIdx: index("idx_jobs_market_timestart").on(table.market, desc(table.timeStart)),
     // Partial covering index for the compute-hours/duration aggregation
     // (GET /jobs/stats/timestamps-hours). Covers completed jobs with a real end
     // time as well as running jobs (which have time_end = 0 and are bounded by
