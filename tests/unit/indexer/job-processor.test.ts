@@ -266,6 +266,42 @@ describe('JobProcessor', () => {
       );
     });
 
+    it('should fetch and store the settings of a restricted market', async () => {
+      const restrictedMarket = createTestNosanaMarket({ jobType: 0x80 | 4 });
+      mockNosanaClient.jobs.marketSettings.mockResolvedValueOnce({
+        address: createMockAddress('Settings1'),
+        market: createMockAddress(testMarketAddress),
+        projectAccessKey: createMockAddress('Collection1'),
+      });
+
+      await processor.handleMarketUpdate(restrictedMarket as any);
+
+      expect(mockNosanaClient.jobs.marketSettings).toHaveBeenCalledWith(restrictedMarket.address);
+      expect(mockMarketsRepo.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ settingsAddress: 'Settings1', projectAccessKey: 'Collection1' })
+      );
+    });
+
+    it('should clear the settings columns of an open market without fetching them', async () => {
+      await processor.handleMarketUpdate(createTestNosanaMarket({ jobType: 4 }) as any);
+
+      expect(mockNosanaClient.jobs.marketSettings).not.toHaveBeenCalled();
+      expect(mockMarketsRepo.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ settingsAddress: null, projectAccessKey: null })
+      );
+    });
+
+    it('should keep the stored settings when fetching them fails', async () => {
+      mockNosanaClient.jobs.marketSettings.mockRejectedValueOnce(new Error('rpc down'));
+
+      await processor.handleMarketUpdate(createTestNosanaMarket({ jobType: 0x80 }) as any);
+
+      expect(mockMarketsRepo.upsert).toHaveBeenCalledTimes(1);
+      const [row] = mockMarketsRepo.upsert.mock.calls[0];
+      expect(row).not.toHaveProperty('settingsAddress');
+      expect(row).not.toHaveProperty('projectAccessKey');
+    });
+
     it('should still prune queued jobs when the market upsert fails', async () => {
       mockMarketsRepo.upsert.mockRejectedValueOnce(new Error(dbErrorMessage));
       mockJobAccountsRepo.findQueuedByMarket.mockResolvedValue([

@@ -55,6 +55,8 @@ export class MarketsService {
       jobTimeout: market.jobTimeout,
       jobExpiration: market.jobExpiration,
       jobType: market.jobType,
+      settingsAddress: market.settingsAddress ?? null,
+      projectAccessKey: market.projectAccessKey ?? null,
       updatedAt: market.updatedAt,
     };
   }

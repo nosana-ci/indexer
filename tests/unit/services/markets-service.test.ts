@@ -39,6 +39,8 @@ const marketRow = (overrides: Record<string, unknown> = {}) => ({
   jobTimeout: 3600,
   jobExpiration: 0,
   jobType: 0,
+  settingsAddress: null,
+  projectAccessKey: null,
   updatedAt: 1_700_000_000,
   ...overrides,
 });
@@ -91,6 +93,27 @@ describe("MarketsService", () => {
       expect(nodeQueue).toMatchObject({ nodesInQueue: 2, jobsInQueue: 0, running: 3 });
       expect(jobQueue).toMatchObject({ nodesInQueue: 0, jobsInQueue: 1, running: 0 });
       expect(nodeQueue).not.toHaveProperty("authority");
+    });
+
+    it("returns null settings columns for an open market", async () => {
+      mockMarketsRepo.findAll.mockResolvedValue([marketRow()]);
+      mockJobsRepo.countRunningByMarket.mockResolvedValue([]);
+
+      const [market] = await service.getMarkets();
+
+      expect(market).toMatchObject({ settingsAddress: null, projectAccessKey: null });
+    });
+
+    it("passes the settings account and access key of a restricted market through", async () => {
+      mockMarketsRepo.findAll.mockResolvedValue([
+        marketRow({ settingsAddress: "Settings1", projectAccessKey: "Collection1" }),
+      ]);
+      mockJobsRepo.countRunningByMarket.mockResolvedValue([]);
+
+      const [market] = await service.getMarkets();
+
+      expect(market).toMatchObject({ settingsAddress: "Settings1", projectAccessKey: "Collection1" });
+      expect(market).not.toHaveProperty("settings");
     });
   });
 

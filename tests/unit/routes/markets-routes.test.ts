@@ -35,6 +35,8 @@ const marketResponse = {
   jobTimeout: 3600,
   jobExpiration: 0,
   jobType: 0,
+  settingsAddress: null,
+  projectAccessKey: null,
   updatedAt: 1_700_000_000,
 };
 
@@ -79,6 +81,17 @@ describe('Markets Routes', () => {
         running: 1,
         queue: ['NodeA', 'NodeB'],
       });
+    });
+
+    it('returns the settings of a restricted market', async () => {
+      const settings = { settingsAddress: 'Settings1', projectAccessKey: 'Collection1' };
+      mockMarketsService.getMarkets.mockResolvedValue([{ ...marketResponse, ...settings }]);
+
+      const res = await app.handle(new Request(`${BASE_URL}/markets`));
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(body[0]).toMatchObject(settings);
     });
 
     it('returns an empty array when there are no markets', async () => {

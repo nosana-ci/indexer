@@ -39,6 +39,7 @@ import {
   jobsAreEqual,
   convertJobToInsertJob,
   convertMarketToInsertMarket,
+  isMarketRestricted,
   checkJobExists,
   sleep,
 } from '../../../src/indexer/utils';
@@ -457,6 +458,57 @@ describe('Indexer Utils', () => {
         authority: null,
         jobPrice: null,
       });
+    });
+
+    it('masks the restricted flag out of jobType', () => {
+      const market = {
+        address: addr(testMarketAddress),
+        queueType: marketQueueNodeType,
+        queue: [],
+        jobType: 0x80 | 4,
+      };
+
+      expect(convertMarketToInsertMarket(market as never, 1)).toMatchObject({ jobType: 4 });
+    });
+
+    it('leaves the settings columns out when settings were not fetched', () => {
+      const market = { address: addr(testMarketAddress), queueType: marketQueueNodeType, queue: [] };
+
+      const row = convertMarketToInsertMarket(market as never, 1);
+
+      expect(row).not.toHaveProperty('settingsAddress');
+      expect(row).not.toHaveProperty('projectAccessKey');
+    });
+
+    it('stores null settings columns for an open market', () => {
+      const market = { address: addr(testMarketAddress), queueType: marketQueueNodeType, queue: [] };
+
+      expect(convertMarketToInsertMarket(market as never, 1, null)).toMatchObject({
+        settingsAddress: null,
+        projectAccessKey: null,
+      });
+    });
+
+    it('stores the settings account and access key of a restricted market', () => {
+      const market = { address: addr(testMarketAddress), queueType: marketQueueNodeType, queue: [] };
+      const settings = {
+        address: addr('Settings1'),
+        market: addr(testMarketAddress),
+        projectAccessKey: addr('Collection1'),
+      };
+
+      expect(convertMarketToInsertMarket(market as never, 1, settings as never)).toMatchObject({
+        settingsAddress: 'Settings1',
+        projectAccessKey: 'Collection1',
+      });
+    });
+  });
+
+  describe('isMarketRestricted', () => {
+    it('is true only when the RESTRICTED bit of jobType is set', () => {
+      expect(isMarketRestricted({ jobType: 0x80 | 2 } as never)).toBe(true);
+      expect(isMarketRestricted({ jobType: 2 } as never)).toBe(false);
+      expect(isMarketRestricted({ jobType: 0 } as never)).toBe(false);
     });
   });
 

@@ -5,6 +5,7 @@ import {
   MarketQueueType,
   address,
   type Market,
+  type MarketSettings,
   type Run,
   type FlowState,
   type JobDefinition,
@@ -14,6 +15,7 @@ import {
   jobsAreEqual,
   convertJobToInsertJob,
   convertMarketToInsertMarket,
+  isMarketRestricted,
   checkJobExists,
   sleep,
 } from "./utils";
@@ -70,11 +72,16 @@ export class JobProcessor {
   }
 
   async handleMarketUpdate(marketAccount: Market): Promise<void> {
-    // Persist the market's current state (queue, queue type, pricing) so the
-    // markets table reflects live on-chain queues.
+    // Persist the market's current state (queue, queue type, pricing, settings)
+    // so the markets table reflects live on-chain queues. The program flags a
+    // market restricted in `jobType` whenever it has a settings account, so only
+    // a restricted market needs the extra fetch; an open one just clears them.
     try {
+      const settings = isMarketRestricted(marketAccount)
+        ? await this.fetchMarketSettings(marketAccount)
+        : null;
       await this.marketsRepo.upsert(
-        convertMarketToInsertMarket(marketAccount, Math.floor(Date.now() / 1000)),
+        convertMarketToInsertMarket(marketAccount, Math.floor(Date.now() / 1000), settings),
       );
     } catch (error) {
       logger.error({ err: error, market: marketAccount.address }, "Failed to persist market state");
@@ -113,6 +120,24 @@ export class JobProcessor {
           }
         }
       }
+    }
+  }
+
+  /**
+   * The market's settings account: `null` for an open market, `undefined` when
+   * the fetch failed so the stored settings are kept rather than wiped.
+   */
+  private async fetchMarketSettings(
+    marketAccount: Market,
+  ): Promise<MarketSettings | null | undefined> {
+    try {
+      return await this.nosanaClient.jobs.marketSettings(marketAccount.address);
+    } catch (error) {
+      logger.error(
+        { err: error, market: marketAccount.address },
+        "Failed to fetch market settings, keeping stored settings",
+      );
+      return undefined;
     }
   }
 
