@@ -1,7 +1,7 @@
 # Source: https://bun.com/docs/guides/ecosystem/docker
 # use the official Bun image
 # see all versions at https://hub.docker.com/r/oven/bun/tags
-FROM oven/bun:1.3.8-alpine AS base
+FROM oven/bun:1.4.4-alpine AS base
 WORKDIR /usr/src/app
 
 ## install dependencies into temp directory
