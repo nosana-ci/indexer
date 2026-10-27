@@ -14,6 +14,10 @@ export const marketResponse = t.Object({
   jobTimeout: t.Nullable(t.Number()),
   jobExpiration: t.Nullable(t.Number()),
   jobType: t.Nullable(t.Number()),
+  // Settings account of a restricted market and the NFT collection whose holders
+  // may post jobs to it; both null for a market open to all projects.
+  settingsAddress: t.Nullable(t.String()),
+  projectAccessKey: t.Nullable(t.String()),
   updatedAt: t.Number(),
 });
 

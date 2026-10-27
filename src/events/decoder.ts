@@ -40,7 +40,6 @@ const ENTITY_MAP = {
   },
   Complete: track(JobsClient.COMPLETE_INSTRUCTION_ACCOUNTS, "job"),
   Quit: track(JobsClient.QUIT_INSTRUCTION_ACCOUNTS, "job", "run"),
-  Claim: track(JobsClient.CLAIM_INSTRUCTION_ACCOUNTS, "job", "market", "run"),
   Recover: track(JobsClient.RECOVER_INSTRUCTION_ACCOUNTS, "job", "market"),
   Assign: track(JobsClient.ASSIGN_INSTRUCTION_ACCOUNTS, "job", "market", "node", "run"),
   Clean: track(JobsClient.CLEAN_INSTRUCTION_ACCOUNTS, "job", "market"),
@@ -48,6 +47,9 @@ const ENTITY_MAP = {
   Open: track(JobsClient.OPEN_INSTRUCTION_ACCOUNTS, "market"),
   Close: track(JobsClient.CLOSE_INSTRUCTION_ACCOUNTS, "market"),
   Update: track(JobsClient.UPDATE_INSTRUCTION_ACCOUNTS, "market"),
+  // Protecting a market with a project access key, or opening it again.
+  SetSettings: track(JobsClient.SET_SETTINGS_INSTRUCTION_ACCOUNTS, "market"),
+  CloseSettings: track(JobsClient.CLOSE_SETTINGS_INSTRUCTION_ACCOUNTS, "market"),
   // The node signs its own `work`, so `authority` is the node even when the run
   // account it passed has since been closed.
   Work: {

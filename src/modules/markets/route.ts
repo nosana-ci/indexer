@@ -22,7 +22,7 @@ const marketsRouter = new Elysia({ prefix: "/markets" })
       detail: {
         summary: "List markets with live queue and running counts",
         description:
-          "Current on-chain state of every market: nodes in queue, jobs in queue, nodes running a job, the queued addresses, and job pricing/timeout.",
+          "Current on-chain state of every market: nodes in queue, jobs in queue, nodes running a job, the queued addresses, job pricing/timeout, and the settings account and project access key of a restricted market (both null for a market open to all projects).",
         tags: ["Markets"],
       },
     },

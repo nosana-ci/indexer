@@ -1,10 +1,26 @@
-import type { Job, Market, NosanaClient } from "@nosana/kit";
+import type { Job, Market, MarketSettings, NosanaClient } from "@nosana/kit";
 import { address } from "@nosana/kit";
 import type { InsertJob, SelectJob } from "../db/tables/jobs";
 import type { InsertMarket } from "../db/tables/markets";
 
+// Flag the program sets in a market's `jobType` while it has a settings account
+// (`MarketAccount::RESTRICTED`); the low bits keep the job type.
+export const MARKET_RESTRICTED_FLAG = 0x80;
+
+/** Whether the market is restricted to projects holding its access key. */
+export function isMarketRestricted(market: Market): boolean {
+  return (Number(market.jobType) & MARKET_RESTRICTED_FLAG) !== 0;
+}
+
 // Maps a Market account from @nosana/kit to a row for the markets table.
-export function convertMarketToInsertMarket(market: Market, now: number): InsertMarket {
+// `settings` is the market's settings account (`null` for an open market). When
+// it is `undefined` (the fetch failed) the settings columns are left out, so an
+// upsert keeps whatever the row already holds.
+export function convertMarketToInsertMarket(
+  market: Market,
+  now: number,
+  settings?: MarketSettings | null,
+): InsertMarket {
   const queue = market.queue.map((a) => a.toString());
   return {
     address: market.address.toString(),
@@ -15,7 +31,11 @@ export function convertMarketToInsertMarket(market: Market, now: number): Insert
     jobPrice: market.jobPrice != null ? Number(market.jobPrice) : null,
     jobTimeout: market.jobTimeout != null ? Number(market.jobTimeout) : null,
     jobExpiration: market.jobExpiration != null ? Number(market.jobExpiration) : null,
-    jobType: market.jobType != null ? Number(market.jobType) : null,
+    jobType: market.jobType != null ? Number(market.jobType) & ~MARKET_RESTRICTED_FLAG : null,
+    ...(settings !== undefined && {
+      settingsAddress: settings?.address.toString() ?? null,
+      projectAccessKey: settings?.projectAccessKey.toString() ?? null,
+    }),
     updatedAt: now,
   };
 }

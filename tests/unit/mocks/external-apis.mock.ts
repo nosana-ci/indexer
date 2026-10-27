@@ -14,6 +14,7 @@ export const createMockNosanaClient = () => {
       get: vi.fn().mockResolvedValue(null),
       all: vi.fn().mockResolvedValue([]),
       markets: vi.fn().mockResolvedValue([]),
+      marketSettings: vi.fn().mockResolvedValue(null),
       monitor: vi.fn(),
       monitorDetailed: vi.fn(),
     },
